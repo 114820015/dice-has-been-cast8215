@@ -290,10 +290,16 @@
             right: 20px;
             color: #ff3333;
             font-weight: 900;
-            font-size: 20px;
+            font-size: 24px;
             display: none;
             text-shadow: 0 0 10px #ff0000;
-            z-index: 100;
+            z-index: 101;
+            animation: pulse-red-text 0.5s infinite;
+        }
+        @keyframes pulse-red-text {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.1); opacity: 0.7; }
+            100% { transform: scale(1); opacity: 1; }
         }
         .end-face-box {
             width: 50px;
@@ -663,32 +669,32 @@
             const groundY = bossSize / 2 + bossFloatHeight; 
 
             function animateBossDrop() {
-                velocity += gravity;
-                bossDice.position.y -= velocity;
-                bossDice.rotation.x += 0.05;
-                bossDice.rotation.z += 0.02;
+                const groundY = 1; 
+                let dropVelocity = 0;
+                const gravity = 0.02;
 
-                if (bossDice.position.y <= groundY) {
-                    bossDice.position.y = groundY;
-                    bossDice.rotation.set(0, 0, 0); 
-                    const originalY = camera.position.y;
-                    let shakeCount = 0;
-                    const shakeInterval = setInterval(() => {
-                        camera.position.y = originalY + (Math.random() - 0.5) * 0.5;
-                        shakeCount++;
-                        if (shakeCount > 10) {
-                            clearInterval(shakeInterval);
-                            camera.position.y = originalY;
-                        }
-                    }, 30);
-                    showMessage("Hit the beam!", "#00d0ff");
-                    setTimeout(() => bossTurn(), 500); 
-                    return; 
+                function drop() {
+                    if (!bossDice) return;
+                        dropVelocity += gravity;
+                        bossDice.position.y -= dropVelocity;
+
+                    if (bossDice.position.y <= groundY) {
+                        bossDice.position.y = groundY;
+            
+                        // 加入落地震動
+                        screenShake();
+            
+                        // 加入落地提示
+                        showMessage("Hit the beam!", "#00d0ff");
+            
+                        setTimeout(() => bossTurn(), 600);
+                        return;
+                    }
+                    requestAnimationFrame(drop);
                 }
-                requestAnimationFrame(animateBossDrop);
-            }
-            animateBossDrop();
+                drop();
         }
+
 
         async function bossTurn() {
             if (bossHP <= 0) return; 
@@ -916,7 +922,20 @@
             box.style.display = 'block';
             setTimeout(() => { box.style.display = 'none'; }, 2500);
         }
-
+        function screenShake() {
+            if (!camera) return;
+            const originalY = camera.position.y;
+            let shakeCount = 0;
+            const shakeIntensity = 0.8; // 如果要震更強，可以改成 1.2
+            const shakeInterval = setInterval(() => {
+                camera.position.y = originalY + (Math.random() - 0.5) * shakeIntensity;
+                shakeCount++;
+                if (shakeCount > 15) { 
+                    clearInterval(shakeInterval);
+                    camera.position.y = originalY;
+                }
+            }, 30);
+        }
         function countSurroundingChips(x, z) {
             let count = 0;
             for (let dx = -1; dx <= 1; dx++) {
@@ -1495,5 +1514,6 @@
     </script>
 </body>
 </html>
+
 
 
