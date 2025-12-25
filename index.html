@@ -926,7 +926,7 @@
             if (!camera) return;
             const originalY = camera.position.y;
             let shakeCount = 0;
-            const shakeIntensity = 0.8; // 如果要震更強，可以改成 1.2
+            const shakeIntensity = 1.2; // 如果要震更強，可以改成 1.2
             const shakeInterval = setInterval(() => {
                 camera.position.y = originalY + (Math.random() - 0.5) * shakeIntensity;
                 shakeCount++;
@@ -1514,5 +1514,6 @@
     </script>
 </body>
 </html>
+
 
 
