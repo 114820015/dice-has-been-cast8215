@@ -284,6 +284,17 @@
             grid-template-rows: repeat(2, 50px);
             gap: 10px;
         }
+        #warning-text {
+            position: absolute;
+            top: 60px;
+            right: 20px;
+            color: #ff3333;
+            font-weight: 900;
+            font-size: 20px;
+            display: none;
+            text-shadow: 0 0 10px #ff0000;
+            z-index: 100;
+        }
         .end-face-box {
             width: 50px;
             height: 50px;
@@ -660,10 +671,17 @@
                 if (bossDice.position.y <= groundY) {
                     bossDice.position.y = groundY;
                     bossDice.rotation.set(0, 0, 0); 
-                    camera.position.y -= 0.5;
-                    setTimeout(() => camera.position.y += 0.5, 50);
-                    showMessage("DOOM DICE! CLEAR BEAMS!", "#ff0000");
-                    
+                    const originalY = camera.position.y;
+                    let shakeCount = 0;
+                    const shakeInterval = setInterval(() => {
+                        camera.position.y = originalY + (Math.random() - 0.5) * 0.5;
+                        shakeCount++;
+                        if (shakeCount > 10) {
+                            clearInterval(shakeInterval);
+                            camera.position.y = originalY;
+                        }
+                    }, 30);
+                    showMessage("Hit the beam!", "#00d0ff");
                     setTimeout(() => bossTurn(), 500); 
                     return; 
                 }
@@ -725,45 +743,52 @@
         }
 
         function spawnBeams(count) {
-            for(let i=0; i<count; i++) {
-                let bx, bz;
-                let attempts = 0;
-                do {
-                    bx = Math.floor(Math.random() * gridSize) - halfBoard;
-                    bz = Math.floor(Math.random() * gridSize) - halfBoard;
-                    attempts++;
-                } while (
-                    (bx === 0 && bz === 0) || 
-                    (bx === Math.round(dice.position.x) && bz === Math.round(dice.position.z)) 
-                    && attempts < 50
-                );
+            for(let i = 0; i < count; i++) {
+            let bx, bz;
+            let attempts = 0;
+            // 尋找隨機位置，避開原點與玩家位置
+            do {
+                bx = Math.floor(Math.random() * gridSize) - halfBoard;
+                bz = Math.floor(Math.random() * gridSize) - halfBoard;
+                attempts++;
+            } while (
+                (bx === 0 && bz === 0) || 
+                (bx === Math.round(dice.position.x) && bz === Math.round(dice.position.z)) 
+                && attempts < 50
+            );
 
-                const existing = beams.find(b => b.userData.x === bx && b.userData.z === bz);
-                if (!existing) {
-                    const h = 10;
-                    const geo = new THREE.CylinderGeometry(0.4, 0.4, h, 16);
-                    const mat = new THREE.MeshPhongMaterial({
-                        color: 0x2a003b,
-                        emissive: 0xaa00ff,
-                        emissiveIntensity: 0.8,
-                        transparent: true,
-                        opacity: 0.4 // Lighter opacity
-                    });
+            const existing = beams.find(b => b.userData.x === bx && b.userData.z === bz);
+            if (!existing) {
+                const h = 10;
+                const geo = new THREE.CylinderGeometry(0.4, 0.4, h, 16);
+                const mat = new THREE.MeshPhongMaterial({
+                    color: 0x2a003b, 
+                    emissive: 0xaa00ff, 
+                    emissiveIntensity: 0.8, 
+                    transparent: true, 
+                    opacity: 0.4 
+                });
                     const beam = new THREE.Mesh(geo, mat);
                     beam.position.set(bx, h/2, bz);
                     beam.userData = { x: bx, z: bz, type: 'beam' };
-                    
                     scene.add(beam);
                     beams.push(beam);
-                }
-            }
-
-            if (beams.length >= 21) {
-                gameOver(false, "OVERLOAD! WORLD DESTROYED!");
-            } else if (beams.length >= 15) {
-                showMessage("WARNING!", "#ff0000");
             }
         }
+
+        // --- 功能需求：檢查光束數量 ---
+        const warningEl = document.getElementById('warning-text');
+        if (warningEl) {
+            if (beams.length > 15) {
+                warningEl.style.display = 'block'; // 多於 15 條顯示 WARNING
+            } else {
+                warningEl.style.display = 'none';  // 否則隱藏
+            }
+        }
+
+        if (beams.length >= 21) gameOver(false, "OVERLOAD!");
+    }
+
 
         async function checkBeamCollision(x, z) {
             const index = beams.findIndex(b => b.userData.x === Math.round(x) && b.userData.z === Math.round(z));
@@ -775,13 +800,10 @@
                 bossHP--;
                 updateHealthUI();
                 
-                showMessage("DAMAGE", "#4CAF50");
+                showMessage("HIT!", "#4CAF50");
                 
-                if (bossHP <= 0) {
-                    await animateBossDefeat();
-                    return true; 
+                if (bossHP <= 0) { await animateBossDefeat(); return true; }
                 }
-            }
             return false;
         }
 
@@ -1473,4 +1495,5 @@
     </script>
 </body>
 </html>
+
 
