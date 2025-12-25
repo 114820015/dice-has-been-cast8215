@@ -1,30 +1,111 @@
 <!DOCTYPE html>
-<html lang="zh-Hant">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D 骰子冒險 - 規則強化版</title>
+    <title>3D Dice Adventure</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/geometries/RoundedBoxGeometry.js"></script>
     <style>
-        body { margin: 0; overflow: hidden; background-color: #ffffff; font-family: sans-serif; }
+        body { margin: 0; overflow: hidden; background-color: #ffffff; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; user-select: none; }
         
         #left-ui {
             position: absolute;
-            top: 20px;
-            left: 20px;
+            top: 15px; 
+            left: 15px;
             z-index: 100;
             display: flex;
             flex-direction: column;
             align-items: flex-start;
-            gap: 10px;
+            gap: 6px; 
             pointer-events: none;
+            transform-origin: top left;
+            transform: scale(0.9); 
+        }
+
+        /* Top Battle UI */
+        #top-ui {
+            position: absolute;
+            top: 10px; 
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 5px;
+            width: 80%;
+            pointer-events: none;
+        }
+
+        #health-bar-container {
+            display: flex;
+            gap: 2px;
+            background: rgba(0,0,0,0.6);
+            padding: 4px;
+            border-radius: 4px;
+            border: 1px solid rgba(255, 50, 50, 0.3);
+        }
+
+        .health-segment {
+            width: 20px; 
+            height: 20px;
+            background-color: #F44336; 
+            border-radius: 2px;
+            transition: background-color 0.3s, transform 0.2s;
+            box-shadow: 0 0 5px #F44336;
+        }
+        .health-lost { 
+            background-color: #333; 
+            box-shadow: none;
+            transform: scale(0.9);
+        }
+
+        #boss-counter-panel {
+            background: rgba(0, 30, 80, 0.85);
+            color: #00d0ff;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-weight: bold;
+            font-size: 12px;
+            border: 1px solid #00d0ff;
+            text-shadow: 0 0 5px #00d0ff;
+            margin-top: 2px;
+        }
+
+        #boss-btn {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: auto;
+            background: #000000;
+            color: #ff3333;
+            border: 2px solid #ff3333;
+            padding: 8px 16px;
+            font-size: 16px;
+            font-weight: 900;
+            cursor: pointer;
+            display: none;
+            z-index: 100;
+            border-radius: 8px;
+            text-shadow: 0 0 5px #ff0000;
+            box-shadow: 0 0 15px rgba(0,0,0,0.6);
+            letter-spacing: 2px;
+            transition: all 0.3s;
+            animation: pulse-red 2s infinite;
+        }
+        #boss-btn:hover { transform: scale(1.1); background: #222; }
+
+        @keyframes pulse-red {
+            0% { box-shadow: 0 0 10px rgba(255, 0, 0, 0.4); }
+            50% { box-shadow: 0 0 25px rgba(255, 0, 0, 0.8); }
+            100% { box-shadow: 0 0 10px rgba(255, 0, 0, 0.4); }
         }
 
         #hud {
             background: rgba(255, 255, 255, 0.95);
-            padding: 8px 16px;
-            border-radius: 10px;
+            padding: 6px 12px; 
+            border-radius: 8px;
             backdrop-filter: blur(10px);
             box-shadow: 0 4px 15px rgba(0,0,0,0.06);
             pointer-events: auto;
@@ -34,56 +115,97 @@
             border: 1px solid rgba(0,0,0,0.05);
         }
 
-        #score-label { font-size: 14px; font-weight: 600; color: #777; }
-        #score-value { font-size: 20px; font-weight: 800; color: #000000; min-width: 40px; }
+        #score-label { font-size: 12px; font-weight: 600; color: #4CAF50; }
+        #score-value { font-size: 18px; font-weight: 800; color: #4CAF50; min-width: 30px; }
 
         #dice-status-panel {
             background: rgba(255, 255, 255, 0.85);
-            padding: 10px;
-            border-radius: 10px;
+            padding: 8px; 
+            border-radius: 8px;
             backdrop-filter: blur(10px);
             box-shadow: 0 4px 15px rgba(0,0,0,0.05);
             pointer-events: auto;
             border: 1px solid rgba(0,0,0,0.05);
             display: flex;
             flex-direction: column;
-            gap: 8px;
+            gap: 6px;
             align-items: center;
         }
-        #dice-status-label { font-size: 10px; font-weight: 700; color: #aaa; text-transform: uppercase; letter-spacing: 0.5px; }
+        #dice-status-label { display: none; }
+        
         #dice-faces-preview { 
             display: grid; 
-            grid-template-columns: repeat(3, 28px); 
-            grid-template-rows: repeat(2, 28px);
-            gap: 6px; 
+            grid-template-columns: repeat(3, 34px); 
+            grid-template-rows: repeat(2, 34px);
+            gap: 4px; 
         }
         .face-box { 
-            width: 28px; 
-            height: 28px; 
+            width: 34px; 
+            height: 34px; 
             border: 1px solid #eee; 
             border-radius: 4px; 
             background: white; 
             background-size: cover;
             opacity: 0.9;
-            transition: transform 0.2s;
+            transition: all 0.2s;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: flex-end;
+            overflow: hidden;
+            cursor: default;
         }
-        .face-upgraded { transform: scale(1.2); border-color: #ffeb3b; box-shadow: 0 0 5px #ffeb3b; }
+        
+        .upgrade-text {
+            font-size: 7px; 
+            color: #fff;
+            background: rgba(0,0,0,0.6);
+            width: 100%;
+            text-align: center;
+            padding: 1px 0;
+            font-weight: bold;
+            display: block; 
+            line-height: 1;
+        }
+
+        .face-can-upgrade {
+            cursor: pointer;
+            box-shadow: 0 0 8px #FFEB3B; 
+            border: 2px solid #FFEB3B;     
+            animation: pulse-yellow 1.5s infinite;
+            transform: scale(1.05);
+            z-index: 5;
+        }
+        .face-can-upgrade:hover {
+            transform: scale(1.1);
+            box-shadow: 0 0 15px #FFEB3B;
+        }
+
+        @keyframes pulse-yellow {
+            0% { box-shadow: 0 0 3px #FFEB3B; }
+            50% { box-shadow: 0 0 10px #FFEB3B; }
+            100% { box-shadow: 0 0 3px #FFEB3B; }
+        }
+
+        .face-upgraded { transform: scale(1.2) !important; border-color: #ffeb3b !important; box-shadow: 0 0 10px #ffeb3b !important; z-index: 10; }
+        .face-downgraded { transform: scale(0.9) !important; border-color: #F44336 !important; box-shadow: 0 0 10px #F44336 !important; filter: grayscale(100%); }
 
         #action-buttons {
             display: flex;
             flex-direction: column;
-            gap: 6px;
+            gap: 4px;
             pointer-events: auto;
             width: 100%;
+            margin-bottom: 2px; 
         }
 
         .action-btn {
             background: rgba(255, 255, 255, 0.85);
             border: 1px solid #eee;
-            padding: 8px 12px;
+            padding: 6px 10px; 
             border-radius: 6px;
             cursor: pointer;
-            font-size: 12px;
+            font-size: 11px; 
             font-weight: 600;
             color: #444;
             transition: all 0.2s;
@@ -92,7 +214,7 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            width: 140px;
+            width: 116px; 
         }
         .action-btn:hover { background: #fff; transform: translateY(-1px); }
         .btn-cost { color: #000000; font-size: 10px; font-weight: 700; opacity: 0.7; }
@@ -127,55 +249,144 @@
             text-align: center;
             box-shadow: 0 10px 30px rgba(0,0,0,0.3);
             pointer-events: none;
+            width: max-content;
         }
 
+        #end-screen {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.9);
+            z-index: 2000;
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+        }
+        #end-title { font-size: 48px; font-weight: 900; margin-bottom: 20px; letter-spacing: 5px; }
+        #end-stats { font-size: 24px; margin-bottom: 20px; color: #aaa; }
+        #end-dice-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+        #end-dice-label {
+            font-size: 14px;
+            margin-bottom: 10px;
+            color: #ddd;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+        #end-dice-preview {
+            display: grid;
+            grid-template-columns: repeat(3, 50px);
+            grid-template-rows: repeat(2, 50px);
+            gap: 10px;
+        }
+        .end-face-box {
+            width: 50px;
+            height: 50px;
+            background: white;
+            background-size: cover;
+            border-radius: 6px;
+            box-shadow: 0 0 10px rgba(255,255,255,0.2);
+        }
+
+        #restart-btn {
+            padding: 15px 40px;
+            font-size: 24px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: transform 0.2s;
+            box-shadow: 0 0 20px rgba(76, 175, 80, 0.5);
+        }
+        #restart-btn:hover { transform: scale(1.1); }
+
         .score-up { animation: bounce 0.5s; color: #4CAF50 !important; }
-        .score-down { animation: shake 0.4s; color: #F44336 !important; }
+        .score-down { animation: shake 0.4s; color: #4CAF50 !important; }
         @keyframes bounce { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.2); } }
         @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
     </style>
 </head>
 <body>
-    <div id="left-ui">
-        <div id="hud">
-            <div id="score-label">積分</div>
-            <div id="score-value">0</div>
+    <div id="top-ui">
+        <div id="health-bar-container" style="display:none;">
+            <!-- JS will inject segments here -->
         </div>
-        <div id="dice-status-panel">
-            <div id="dice-status-label">骰子面 (當前點數)</div>
-            <div id="dice-faces-preview">
-                <div class="face-box" id="f-0"></div>
-                <div class="face-box" id="f-1"></div>
-                <div class="face-box" id="f-2"></div>
-                <div class="face-box" id="f-3"></div>
-                <div class="face-box" id="f-4"></div>
-                <div class="face-box" id="f-5"></div>
-            </div>
-        </div>
-        <div id="action-buttons">
-            <button class="action-btn" onclick="upgradeDiceFace()">
-                <span>升級骰子面</span> <span class="btn-cost">100</span>
-            </button>
-            <button class="action-btn" onclick="randomDiceTeleport()">
-                <span>隨機傳送</span> <span class="btn-cost">500</span>
-            </button>
+        <div id="boss-counter-panel" style="display:none;">
+            BOSS ACTION IN: <span id="boss-moves-left">-</span>
         </div>
     </div>
+
+    <div id="left-ui">
+        <div id="hud">
+            <div id="score-label">Score</div>
+            <div id="score-value">0</div>
+        </div>
+        <div id="action-buttons">
+            <button class="action-btn" onclick="randomDiceTeleport()">
+                <span>TELEPORT</span> <span class="btn-cost">500</span>
+            </button>
+        </div>
+        <div id="dice-status-panel">
+            <div id="dice-faces-preview">
+                <div class="face-box" id="f-0" onclick="tryUpgradeFace(0)"><span class="upgrade-text">UP 100</span></div>
+                <div class="face-box" id="f-1" onclick="tryUpgradeFace(1)"><span class="upgrade-text">UP 100</span></div>
+                <div class="face-box" id="f-2" onclick="tryUpgradeFace(2)"><span class="upgrade-text">UP 100</span></div>
+                <div class="face-box" id="f-3" onclick="tryUpgradeFace(3)"><span class="upgrade-text">UP 100</span></div>
+                <div class="face-box" id="f-4" onclick="tryUpgradeFace(4)"><span class="upgrade-text">UP 100</span></div>
+                <div class="face-box" id="f-5" onclick="tryUpgradeFace(5)"><span class="upgrade-text">UP 100</span></div>
+            </div>
+        </div>
+    </div>
+    
+    <button id="boss-btn" onclick="triggerBoss()">BOSS</button>
+
     <div id="message-box"></div>
     <div id="instruction">
-        <b>[空白鍵]</b> 擲骰 | <b>[點擊路徑]</b> 移動 | 戰勝<b>紅色骰子</b>獲獎
+        <b>[SPACE]</b> Roll | <b>[CLICK]</b> Move | Clear Beams to Win
+    </div>
+
+    <div id="end-screen">
+        <div id="end-title">GAME OVER</div>
+        <div id="end-dice-container">
+            <div id="end-dice-label">Final Dice State</div>
+            <div id="end-dice-preview">
+                <!-- JS will populate this -->
+            </div>
+        </div>
+        <div id="end-stats">Total Rolls: <span id="total-tosses-val">0</span></div>
+        <button id="restart-btn" onclick="location.reload()">RETRY</button>
     </div>
 
     <script>
         let scene, camera, renderer, dice, board;
+        let bossDice = null;
+        let beams = []; 
+        let particles = []; 
+        
+        let bossActive = false;
+        let playerMovesSinceBoss = 0;
+        let bossLastRoll = 4; 
+        let nextBossThreshold = 6; 
+        let bossHP = 12; 
+        const MAX_HP = 12; 
+        let totalTosses = 0;
+        let totalPlayerMoves = 0; 
+
         const diceSize = 0.56; 
         const gridSize = 19; 
         const cellSize = 1;
         const halfBoard = (gridSize - 1) / 2; 
+        const bossFloatHeight = 1.0; // Reduced float height (was 2.0)
 
         let isMoving = false;
         let hasMovedSinceLastToss = true; 
-        let totalScore = 0;
+        let totalScore = 100; // Updated Initial Score
         let pathGroup = null; 
         let cameraAzimuth = 0; 
         let cameraPolar = 0.8; 
@@ -184,13 +395,13 @@
         const raycaster = new THREE.Raycaster();
         const mouse = new THREE.Vector2();
 
-        let diceFacePoints = [1, 1, 1, 2, 2, 3]; 
+        // Updated Initial Dice Faces: 1,1,1,2,2,2
+        let diceFacePoints = [1, 1, 1, 2, 2, 2]; 
 
-        // 籌碼顏色與價值
         const chipsConfig = [
-            { val: 50, color: '#4CAF50' },  // 綠
-            { val: 100, color: '#2196F3' }, // 藍
-            { val: 150, color: '#FFD700' }  // 黃
+            { val: 50, color: '#4CAF50' },
+            { val: 100, color: '#2196F3' },
+            { val: 150, color: '#FFD700' }
         ];
 
         let collectibleObjects = []; 
@@ -199,9 +410,11 @@
         const OPACITY_TARGET = 0.15;
         const OPACITY_HOVER_NORMAL = 0.12;
         const OPACITY_HOVER_TARGET = 0.35;
-        const occupiedLocations = new Map(); // 儲存座標對應的類型 'chip' 或 'enemy'
+        const occupiedLocations = new Map(); 
 
         function init() {
+            initHealthBar();
+
             scene = new THREE.Scene();
             scene.background = new THREE.Color(0xffffff);
             camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -221,6 +434,7 @@
             createDice();
             updateDiceUI();
             updateCameraPosition();
+            updateScoreUI(); // Display initial score
 
             window.addEventListener('resize', onWindowResize);
             window.addEventListener('keydown', (e) => { if(e.code === 'Space') performToss(); });
@@ -230,19 +444,435 @@
             animate();
         }
 
-        function updateDiceUI(highlightIndex = -1) {
+        // --- UI Functions ---
+
+        function initHealthBar() {
+            const container = document.getElementById('health-bar-container');
+            container.innerHTML = '';
+            for (let i = 0; i < MAX_HP; i++) {
+                const seg = document.createElement('div');
+                seg.className = 'health-segment';
+                seg.id = `hp-${i}`;
+                container.appendChild(seg);
+            }
+        }
+
+        function updateHealthUI() {
+            for (let i = 0; i < MAX_HP; i++) {
+                const seg = document.getElementById(`hp-${i}`);
+                if (i < bossHP) {
+                    seg.classList.remove('health-lost');
+                } else {
+                    seg.classList.add('health-lost');
+                }
+            }
+        }
+
+        function updateBossCounter() {
+            const el = document.getElementById('boss-moves-left');
+            nextBossThreshold = 2 + bossLastRoll; 
+            const movesLeft = Math.max(0, nextBossThreshold - playerMovesSinceBoss);
+            el.innerText = movesLeft;
+        }
+
+        function updateDiceUI(highlightIndex = -1, downgradeIndex = -1) {
             diceFacePoints.forEach((pts, i) => {
                 const el = document.getElementById(`f-${i}`);
                 if (!el) return;
                 const canvas = generatePointCanvas(pts);
                 el.style.backgroundImage = `url(${canvas.toDataURL()})`;
                 
+                el.classList.remove('face-upgraded', 'face-downgraded', 'face-can-upgrade');
+
+                // Check for upgrade availability glow: 
+                // Only if score >= 100 AND face < 6 AND we haven't rolled yet (hasMovedSinceLastToss is true) AND not currently moving
+                if (totalScore >= 100 && pts < 6 && hasMovedSinceLastToss && !isMoving) {
+                    el.classList.add('face-can-upgrade');
+                }
+
                 if (i === highlightIndex) {
                     el.classList.add('face-upgraded');
                     setTimeout(() => el.classList.remove('face-upgraded'), 600);
                 }
+                
+                if (i === downgradeIndex) {
+                    el.classList.add('face-downgraded');
+                    setTimeout(() => el.classList.remove('face-downgraded'), 600);
+                }
             });
         }
+
+        function tryUpgradeFace(index) {
+            if (isMoving) return;
+            // Upgrade Restriction: Only allow before rolling
+            if (!hasMovedSinceLastToss) {
+                showMessage("Roll already cast! Move first!", "#F44336");
+                return;
+            }
+
+            if (totalScore < 100) return;
+            if (diceFacePoints[index] >= 6) {
+                showMessage("MAX LEVEL!", "#F44336");
+                return; 
+            }
+
+            subtractScore(100);
+            diceFacePoints[index]++;
+            
+            const newTex = new THREE.CanvasTexture(generatePointCanvas(diceFacePoints[index]));
+            dice.material[index].map = newTex;
+            dice.material[index].needsUpdate = true;
+            
+            flashDice();
+            updateDiceUI(index);
+            showMessage(`Face Upgraded to ${diceFacePoints[index]}!`, "#ffeb3b");
+            checkBossUnlock();
+        }
+
+        function downgradeRandomFace() {
+            let eligibleIndices = [];
+            diceFacePoints.forEach((pts, i) => { if(pts > 1) eligibleIndices.push(i); });
+            
+            if (eligibleIndices.length > 0) {
+                const targetIdx = eligibleIndices[Math.floor(Math.random() * eligibleIndices.length)];
+                diceFacePoints[targetIdx]--;
+                
+                const newTex = new THREE.CanvasTexture(generatePointCanvas(diceFacePoints[targetIdx]));
+                dice.material[targetIdx].map = newTex;
+                dice.material[targetIdx].needsUpdate = true;
+                
+                updateDiceUI(-1, targetIdx);
+                showMessage(`Face Downgraded to ${diceFacePoints[targetIdx]}!`, "#F44336");
+            } else {
+                showMessage("All faces at minimum!", "#F44336");
+            }
+        }
+
+        // --- Game Logic Updates ---
+
+        function checkBossUnlock() {
+            if (bossActive) return;
+            const btn = document.getElementById('boss-btn');
+            // Changed Condition: Total Tosses >= 25
+            if (totalTosses >= 25 && btn.style.display !== 'block') {
+                btn.style.display = 'block';
+                showMessage("WARNING: BOSS AVAILABLE!", "#ff0000");
+            }
+        }
+
+        function triggerBoss() {
+            const btn = document.getElementById('boss-btn');
+            // Remove text and hide button
+            btn.style.display = 'none';
+
+            bossActive = true;
+            playerMovesSinceBoss = 0;
+            document.getElementById('boss-counter-panel').style.display = 'block';
+            document.getElementById('health-bar-container').style.display = 'flex';
+            updateBossCounter();
+            updateHealthUI();
+
+            // Background Change: Lighter Purple Black
+            scene.background = new THREE.Color(0x2d1b4e);
+
+            // 1. Identify Enemies
+            const enemiesToRemove = [];
+            collectibleObjects.forEach((obj) => {
+                if (obj.userData.type === 'enemy') {
+                    enemiesToRemove.push(obj);
+                }
+            });
+
+            // 2. Animate and Convert Enemies
+            enemiesToRemove.forEach(enemy => {
+                const x = enemy.userData.x;
+                const z = enemy.userData.z;
+                
+                // Squash Animation
+                const startScaleY = enemy.scale.y;
+                let squashFrame = 0;
+                const squashDuration = 20;
+
+                function animateSquash() {
+                    squashFrame++;
+                    const progress = squashFrame / squashDuration;
+                    
+                    if (progress < 1) {
+                        enemy.scale.y = startScaleY * (1 - progress);
+                        enemy.position.y = (0.45 * enemy.scale.y) / 2; // Keep bottom on ground
+                        requestAnimationFrame(animateSquash);
+                    } else {
+                        // Removal and Chip Spawning after animation
+                        scene.remove(enemy);
+                        occupiedLocations.delete(`${x},${z}`);
+                        
+                        // Create 50 Chip (Green)
+                        create3DChip(x, z, { val: 50, color: '#4CAF50' });
+                        occupiedLocations.set(`${x},${z}`, 'chip');
+                    }
+                }
+                animateSquash();
+            });
+            
+            // Remove from main list immediately so logic ignores them during squash
+            collectibleObjects = collectibleObjects.filter(obj => obj.userData.type !== 'enemy');
+
+            showMessage("BOSS SPAWNED! ENEMIES CRUSHED!", "#00d0ff");
+
+            const bossSize = diceSize * 2.4; 
+            const geometry = new THREE.RoundedBoxGeometry(bossSize, bossSize, bossSize, 4, 0.2);
+            const materials = [];
+            for(let i=1; i<=6; i++) {
+                const canvas = document.createElement('canvas');
+                canvas.width = 256; canvas.height = 256;
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = '#000000'; ctx.fillRect(0,0,256,256);
+                ctx.strokeStyle = '#ff3333'; ctx.lineWidth = 10; ctx.strokeRect(0,0,256,256);
+                ctx.fillStyle = '#ffffff';
+                const radius = 24; 
+                const posMap = {
+                    1: [[128, 128]], 
+                    2: [[70, 70], [186, 186]], 
+                    3: [[60, 60], [128, 128], [196, 196]],
+                    4: [[75, 75], [181, 75], [75, 181], [181, 181]], 
+                    5: [[75, 75], [181, 75], [128, 128], [75, 181], [181, 181]],
+                    6: [[75, 60], [75, 128], [75, 196], [181, 60], [181, 128], [181, 196]]
+                };
+                (posMap[i] || []).forEach(p => { ctx.beginPath(); ctx.arc(p[0], p[1], radius, 0, Math.PI * 2); ctx.fill(); });
+                materials.push(new THREE.MeshPhongMaterial({ map: new THREE.CanvasTexture(canvas), emissive: new THREE.Color(0x330000) }));
+            }
+            
+            bossDice = new THREE.Mesh(geometry, materials);
+            bossDice.position.set(0, 20, 0); 
+            bossDice.castShadow = true;
+            scene.add(bossDice);
+
+            let velocity = 0;
+            const gravity = 0.02;
+            const groundY = bossSize / 2 + bossFloatHeight; 
+
+            function animateBossDrop() {
+                velocity += gravity;
+                bossDice.position.y -= velocity;
+                bossDice.rotation.x += 0.05;
+                bossDice.rotation.z += 0.02;
+
+                if (bossDice.position.y <= groundY) {
+                    bossDice.position.y = groundY;
+                    bossDice.rotation.set(0, 0, 0); 
+                    camera.position.y -= 0.5;
+                    setTimeout(() => camera.position.y += 0.5, 50);
+                    showMessage("DOOM DICE! CLEAR BEAMS!", "#ff0000");
+                    
+                    setTimeout(() => bossTurn(), 500); 
+                    return; 
+                }
+                requestAnimationFrame(animateBossDrop);
+            }
+            animateBossDrop();
+        }
+
+        async function bossTurn() {
+            if (bossHP <= 0) return; 
+            
+            isMoving = true; 
+            showMessage("BOSS ACTING...", "#aa00ff");
+            
+            const bossSize = diceSize * 2.4; 
+            const floatY = bossSize / 2 + bossFloatHeight;
+
+            // Boss Roll Animation
+            const duration = 50; 
+            let frame = 0;
+            const startQuat = bossDice.quaternion.clone();
+            const axis = new THREE.Vector3(Math.random()-0.5, Math.random()-0.5, Math.random()-0.5).normalize();
+            const totalRot = Math.PI * 6 + Math.random() * Math.PI * 4;
+            
+            // Just bounce in place
+            const curX = bossDice.position.x; 
+            const curZ = bossDice.position.z;
+
+            await new Promise(resolve => {
+                function animateBossToss() {
+                    frame++; 
+                    const t = frame / duration;
+                    if (frame <= duration) {
+                        bossDice.position.y = floatY + Math.sin(t * Math.PI) * 8; // Jump higher
+                        const currentRot = new THREE.Quaternion().setFromAxisAngle(axis, totalRot * t);
+                        bossDice.quaternion.copy(startQuat).premultiply(currentRot);
+                        requestAnimationFrame(animateBossToss);
+                    } else {
+                        bossDice.position.set(curX, floatY, curZ);
+                        const euler = new THREE.Euler().setFromQuaternion(bossDice.quaternion);
+                        euler.x = Math.round(euler.x / (Math.PI / 2)) * (Math.PI / 2);
+                        euler.y = Math.round(euler.y / (Math.PI / 2)) * (Math.PI / 2);
+                        euler.z = Math.round(euler.z / (Math.PI / 2)) * (Math.PI / 2);
+                        bossDice.quaternion.setFromEuler(euler);
+                        resolve();
+                    }
+                }
+                animateBossToss();
+            });
+
+            bossLastRoll = Math.floor(Math.random() * 6) + 1; 
+            showMessage(`BOSS ROLLED ${bossLastRoll}! BEAMS SPAWNED!`, "#ff3333");
+            
+            spawnBeams(bossLastRoll);
+            
+            playerMovesSinceBoss = 0;
+            updateBossCounter(); 
+            isMoving = false; 
+        }
+
+        function spawnBeams(count) {
+            for(let i=0; i<count; i++) {
+                let bx, bz;
+                let attempts = 0;
+                do {
+                    bx = Math.floor(Math.random() * gridSize) - halfBoard;
+                    bz = Math.floor(Math.random() * gridSize) - halfBoard;
+                    attempts++;
+                } while (
+                    (bx === 0 && bz === 0) || 
+                    (bx === Math.round(dice.position.x) && bz === Math.round(dice.position.z)) 
+                    && attempts < 50
+                );
+
+                const existing = beams.find(b => b.userData.x === bx && b.userData.z === bz);
+                if (!existing) {
+                    const h = 10;
+                    const geo = new THREE.CylinderGeometry(0.4, 0.4, h, 16);
+                    const mat = new THREE.MeshPhongMaterial({
+                        color: 0x2a003b,
+                        emissive: 0xaa00ff,
+                        emissiveIntensity: 0.8,
+                        transparent: true,
+                        opacity: 0.4 // Lighter opacity
+                    });
+                    const beam = new THREE.Mesh(geo, mat);
+                    beam.position.set(bx, h/2, bz);
+                    beam.userData = { x: bx, z: bz, type: 'beam' };
+                    
+                    scene.add(beam);
+                    beams.push(beam);
+                }
+            }
+
+            if (beams.length >= 21) {
+                gameOver(false, "OVERLOAD! WORLD DESTROYED!");
+            } else if (beams.length >= 15) {
+                showMessage("WARNING!", "#ff0000");
+            }
+        }
+
+        async function checkBeamCollision(x, z) {
+            const index = beams.findIndex(b => b.userData.x === Math.round(x) && b.userData.z === Math.round(z));
+            if (index !== -1) {
+                const beam = beams[index];
+                scene.remove(beam);
+                beams.splice(index, 1);
+                
+                bossHP--;
+                updateHealthUI();
+                
+                showMessage("DAMAGE", "#4CAF50");
+                
+                if (bossHP <= 0) {
+                    await animateBossDefeat();
+                    return true; 
+                }
+            }
+            return false;
+        }
+
+        async function animateBossDefeat() {
+            isMoving = true; 
+            showMessage("BOSS EXPLODING...", "#ff00ff");
+            
+            const startY = bossDice.position.y;
+            const startX = bossDice.position.x;
+            const startZ = bossDice.position.z;
+            const duration = 120; 
+
+            // Explosion particles
+            for(let i=0; i<50; i++) {
+                const pGeo = new THREE.BoxGeometry(0.3, 0.3, 0.3);
+                const pMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+                const p = new THREE.Mesh(pGeo, pMat);
+                p.position.set(startX, startY, startZ);
+                // Random outward velocity
+                p.userData.vel = new THREE.Vector3(
+                    (Math.random()-0.5) * 1.5, 
+                    (Math.random()-0.5) * 1.5, 
+                    (Math.random()-0.5) * 1.5
+                );
+                scene.add(p);
+                particles.push(p);
+            }
+
+            for(let f=0; f<duration; f++) {
+                const t = f/duration;
+                // Expanding
+                const scale = 1 + t * 4; // Grow large
+                bossDice.scale.set(scale, scale, scale);
+                
+                // Shake
+                bossDice.position.x = startX + (Math.random()-0.5) * 0.5;
+                bossDice.position.y = startY + (Math.random()-0.5) * 0.5;
+                bossDice.position.z = startZ + (Math.random()-0.5) * 0.5;
+
+                // Flash white/bright
+                const intensity = (f % 5) * 0.2;
+                bossDice.material.forEach(m => {
+                    m.emissive.setRGB(1, 1 - intensity, 1 - intensity);
+                    m.emissiveIntensity = 1 + t * 5;
+                    // Opacity Change
+                    m.transparent = true;
+                    m.opacity = 0.7;
+                });
+
+                // Update particles (delayed explosion visual)
+                if (t > 0.5) {
+                    particles.forEach(p => {
+                        p.position.add(p.userData.vel);
+                        p.rotation.x += 0.2;
+                        p.rotation.y += 0.2;
+                    });
+                }
+
+                await new Promise(requestAnimationFrame);
+            }
+            
+            scene.remove(bossDice);
+            particles.forEach(p => scene.remove(p));
+            particles = [];
+            
+            // Wait 2 seconds before showing game over screen
+            await new Promise(resolve => setTimeout(resolve, 2000));
+
+            gameOver(true, "ALL BEAMS CLEARED! BOSS DEFEATED!");
+        }
+
+        function gameOver(win, msg) {
+            isMoving = true; 
+            document.getElementById('end-screen').style.display = 'flex';
+            document.getElementById('end-title').innerText = win ? "CONGRATULATION" : "GAME OVER";
+            document.getElementById('end-title').style.color = win ? "#4CAF50" : "#F44336";
+            document.getElementById('total-tosses-val').innerText = totalTosses;
+            showMessage(msg, win ? "#4CAF50" : "#F44336");
+
+            const previewContainer = document.getElementById('end-dice-preview');
+            previewContainer.innerHTML = '';
+            diceFacePoints.forEach(pts => {
+                const div = document.createElement('div');
+                div.className = 'end-face-box';
+                const canvas = generatePointCanvas(pts);
+                div.style.backgroundImage = `url(${canvas.toDataURL()})`;
+                previewContainer.appendChild(div);
+            });
+        }
+
+        // --- Original Logic Wrappers ---
 
         function createBoard() {
             const size = gridSize * cellSize;
@@ -252,7 +882,6 @@
             board.rotation.x = -Math.PI / 2;
             board.receiveShadow = true;
             scene.add(board);
-            
             const gridHelper = new THREE.GridHelper(size, gridSize, 0xb0b0b0, 0xc0c0c0);
             gridHelper.position.y = 0.001; 
             scene.add(gridHelper);
@@ -266,28 +895,22 @@
             setTimeout(() => { box.style.display = 'none'; }, 2500);
         }
 
-        // 規則 1：檢查座標 (x, z) 周圍 8 格內的「籌碼」數量
         function countSurroundingChips(x, z) {
             let count = 0;
             for (let dx = -1; dx <= 1; dx++) {
                 for (let dz = -1; dz <= 1; dz++) {
                     if (dx === 0 && dz === 0) continue;
-                    if (occupiedLocations.get(`${x + dx},${z + dz}`) === 'chip') {
-                        count++;
-                    }
+                    if (occupiedLocations.get(`${x + dx},${z + dz}`) === 'chip') count++;
                 }
             }
             return count;
         }
 
-        // 規則 2：檢查座標 (x, z) 周圍 8 格內是否有「敵人」
         function hasSurroundingEnemy(x, z) {
             for (let dx = -1; dx <= 1; dx++) {
                 for (let dz = -1; dz <= 1; dz++) {
                     if (dx === 0 && dz === 0) continue;
-                    if (occupiedLocations.get(`${x + dx},${z + dz}`) === 'enemy') {
-                        return true;
-                    }
+                    if (occupiedLocations.get(`${x + dx},${z + dz}`) === 'enemy') return true;
                 }
             }
             return false;
@@ -297,7 +920,6 @@
             collectibleObjects.forEach(c => scene.remove(c));
             collectibleObjects = [];
             occupiedLocations.clear();
-
             const totalCells = gridSize * gridSize;
             const possiblePositions = [];
             for (let x = -halfBoard; x <= halfBoard; x++) {
@@ -306,25 +928,22 @@
                     possiblePositions.push({x, z});
                 }
             }
-            
-            // 隨機打亂位置順序
             for (let i = possiblePositions.length - 1; i > 0; i--) {
                 const j = Math.floor(Math.random() * (i + 1));
                 [possiblePositions[i], possiblePositions[j]] = [possiblePositions[j], possiblePositions[i]];
             }
-
-            // 更新比例：敵人 8%，籌碼維持 18%
             const targetEnemyCount = Math.floor(totalCells * 0.08); 
             const targetChipCount = Math.floor(totalCells * 0.18);
+            let createdChips = 0, createdEnemies = 0;
 
-            let createdChips = 0;
-            let createdEnemies = 0;
+            // Updated Chip Generation Logic based on Inverse Prob
+            // Config: 50(0), 100(1), 150(2)
+            // Weights: 1/50, 1/100, 1/150 -> 6, 3, 2
+            const weights = [6, 3, 2];
+            const totalWeight = 11;
 
             for (let pos of possiblePositions) {
                 const rand = Math.random();
-                
-                // 優先生成敵人
-                // 敵人規則：自身 8 格內不能有其他敵人
                 if (createdEnemies < targetEnemyCount && rand < 0.15) {
                     if (!hasSurroundingEnemy(pos.x, pos.z)) {
                         create3DEnemy(pos.x, pos.z);
@@ -333,20 +952,27 @@
                         continue; 
                     }
                 } 
-                
-                // 生成籌碼
-                // 籌碼規則：自身 8 格內最多 2 枚籌碼
                 if (createdChips < targetChipCount && rand < 0.25) {
                     if (!occupiedLocations.has(`${pos.x},${pos.z}`)) {
                         if (countSurroundingChips(pos.x, pos.z) < 2) {
-                            const chipIdx = Math.floor(Math.random() * chipsConfig.length);
+                            // Weighted Choice
+                            const r = Math.random() * totalWeight;
+                            let chipIdx = 0;
+                            let accumulated = 0;
+                            for(let i=0; i<weights.length; i++) {
+                                accumulated += weights[i];
+                                if (r < accumulated) {
+                                    chipIdx = i;
+                                    break;
+                                }
+                            }
+
                             create3DChip(pos.x, pos.z, chipsConfig[chipIdx]);
                             occupiedLocations.set(`${pos.x},${pos.z}`, 'chip');
                             createdChips++;
                         }
                     }
                 }
-                
                 if (createdEnemies >= targetEnemyCount && createdChips >= targetChipCount) break;
             }
         }
@@ -356,7 +982,6 @@
             const chipGeom = new THREE.CylinderGeometry(0.35, 0.35, 0.08, 32);
             const chipMat = new THREE.MeshPhongMaterial({ color: config.color, transparent: true, opacity: 0.95 });
             const chipBody = new THREE.Mesh(chipGeom, chipMat);
-            
             const canvas = document.createElement('canvas');
             canvas.width = 128; canvas.height = 128;
             const ctx = canvas.getContext('2d');
@@ -364,13 +989,11 @@
             ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.beginPath(); ctx.arc(64,64,52,0,Math.PI*2); ctx.fill();
             ctx.fillStyle = '#111'; ctx.font = 'bold 42px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
             ctx.fillText(config.val.toString(), 64, 64);
-            
             const textTex = new THREE.CanvasTexture(canvas);
             const topGeom = new THREE.CircleGeometry(0.32, 32);
             const topMat = new THREE.MeshBasicMaterial({ map: textTex, transparent: true, opacity: 1.0 });
             const topLabel = new THREE.Mesh(topGeom, topMat);
             topLabel.rotation.x = -Math.PI / 2; topLabel.position.y = 0.041;
-            
             group.add(chipBody, topLabel);
             group.position.set(x, 0.04, z);
             group.rotation.y = Math.random() * Math.PI * 2;
@@ -383,7 +1006,6 @@
             const points = Math.floor(Math.random() * 5) + 1; 
             const enemySize = 0.45;
             const geometry = new THREE.RoundedBoxGeometry(enemySize, enemySize, enemySize, 2, 0.05);
-            
             const materials = [];
             for(let i=0; i<6; i++) {
                 const canvas = document.createElement('canvas');
@@ -400,7 +1022,6 @@
                 (posMap[points] || []).forEach(p => { ctx.beginPath(); ctx.arc(p[0], p[1], radius, 0, Math.PI*2); ctx.fill(); });
                 materials.push(new THREE.MeshPhongMaterial({ map: new THREE.CanvasTexture(canvas) }));
             }
-            
             const enemyMesh = new THREE.Mesh(geometry, materials);
             enemyMesh.position.set(x, enemySize/2, z);
             enemyMesh.userData = { type: 'enemy', points: points, x: x, z: z };
@@ -489,19 +1110,25 @@
             isMoving = true;
             if (pathGroup) { scene.remove(pathGroup); pathGroup = null; }
             
+            // Increment total moves
+            totalPlayerMoves++;
+            // checkBossUnlock(); // Removed call here, check is done in performToss
+
             for (let s = 1; s < path.length; s++) {
                 const step = path[s], prev = path[s-1];
                 const enemy = getObjectAt(step.x, step.z, 'enemy');
                 
+                // 2. Beam Collision
+                if (await checkBeamCollision(step.x, step.z)) return; 
+
                 if (enemy) {
-                    showMessage("對決開始！", "#ff4d4d");
+                    showMessage("FIGHT!", "#ff4d4d");
                     await combatTossAnimation(enemy);
-                    
                     const myPoint = getUpwardFace();
                     const enemyPoint = enemy.userData.points;
 
                     if (myPoint >= enemyPoint) {
-                        showMessage(`大獲全勝！重壓敵人！`, "#4CAF50");
+                        showMessage(`Bigger!`, "#4CAF50");
                         addScore(100);
                         await performCrushMove(prev, step, enemy);
                         scene.remove(enemy);
@@ -509,9 +1136,27 @@
                         occupiedLocations.delete(`${enemy.userData.x},${enemy.userData.z}`);
                         checkChipCollection(step.x, step.z);
                     } else {
-                        showMessage(`戰敗... 點數不足！`, "#F44336");
-                        subtractScore(50);
+                        // NEW LOGIC: Deduct score, if < 0 downgrade face
+                        if (totalScore - 50 < 0) {
+                            totalScore = 0;
+                            updateScoreUI(); // Make sure display is 0
+                            downgradeRandomFace();
+                        } else {
+                            subtractScore(50);
+                            showMessage(`Smaller!`, "#F44336");
+                        }
+                        
                         hasMovedSinceLastToss = true; 
+                        
+                        // Check Boss Logic after Move
+                        if(bossActive) {
+                            playerMovesSinceBoss++;
+                            updateBossCounter();
+                            if(playerMovesSinceBoss >= nextBossThreshold || beams.length === 0) {
+                                isMoving = false; 
+                                await bossTurn();
+                            }
+                        }
                         isMoving = false;
                         return;
                     }
@@ -520,8 +1165,20 @@
                     checkChipCollection(step.x, step.z);
                 }
             }
+
             hasMovedSinceLastToss = true;
+            // Set false first, then update UI to enable glow
             isMoving = false;
+            updateDiceUI();
+            
+            if (bossActive) {
+                playerMovesSinceBoss++;
+                updateBossCounter();
+                
+                if (playerMovesSinceBoss >= nextBossThreshold || beams.length === 0) {
+                    await bossTurn();
+                }
+            }
         }
 
         async function performCrushMove(from, to, enemy) {
@@ -631,12 +1288,19 @@
             }
         }
 
+        function updateScoreUI() {
+            const scoreEl = document.getElementById('score-value');
+            scoreEl.innerText = totalScore.toLocaleString();
+            updateDiceUI(); // Check for upgrade status whenever score changes
+        }
+
         function addScore(points) {
             totalScore += points;
             const scoreEl = document.getElementById('score-value');
             scoreEl.innerText = totalScore.toLocaleString();
             scoreEl.classList.remove('score-up');
             void scoreEl.offsetWidth; scoreEl.classList.add('score-up');
+            updateDiceUI(); // Check glow
         }
 
         function subtractScore(points) {
@@ -645,6 +1309,7 @@
             scoreEl.innerText = totalScore.toLocaleString();
             scoreEl.classList.remove('score-down');
             void scoreEl.offsetWidth; scoreEl.classList.add('score-down');
+            updateDiceUI(); // Check glow
         }
 
         function snapDiceRotation() {
@@ -666,9 +1331,13 @@
 
         function performToss() {
             if(isMoving) return;
-            if (!hasMovedSinceLastToss) { showMessage("請先點擊路徑移動！"); return; }
+            if (!hasMovedSinceLastToss) { showMessage("Move First!"); return; }
+            
             isMoving = true;
             if (pathGroup) { scene.remove(pathGroup); pathGroup = null; }
+            
+            totalTosses++; 
+
             const duration = 50; let frame = 0;
             const startQuat = dice.quaternion.clone();
             const axis = new THREE.Vector3(Math.random()-0.5, Math.random()-0.5, Math.random()-0.5).normalize();
@@ -684,30 +1353,21 @@
                 } else {
                     dice.position.set(curX, diceSize / 2, curZ);
                     snapDiceRotation(); 
+                    
                     showPath(getUpwardFace()); 
                     hasMovedSinceLastToss = false;
+                    
                     isMoving = false;
+                    updateDiceUI(); // Update UI immediately to remove glow
+                    
+                    // Check Boss Unlock condition after toss
+                    checkBossUnlock();
                 }
             }
             animateToss();
         }
 
-        function upgradeDiceFace() {
-            if (isMoving) return;
-            if (totalScore < 100) { showMessage("積分不足 (需要 100)！"); return; }
-            let eligibleIndices = [];
-            diceFacePoints.forEach((pts, i) => { if(pts < 6) eligibleIndices.push(i); });
-            if (eligibleIndices.length === 0) { showMessage("所有面都滿級了！"); return; }
-            subtractScore(100);
-            const targetIdx = eligibleIndices[Math.floor(Math.random() * eligibleIndices.length)];
-            diceFacePoints[targetIdx]++;
-            const newTex = new THREE.CanvasTexture(generatePointCanvas(diceFacePoints[targetIdx]));
-            dice.material[targetIdx].map = newTex;
-            dice.material[targetIdx].needsUpdate = true;
-            flashDice();
-            updateDiceUI(targetIdx);
-            showMessage(`面升級！點數變為 ${diceFacePoints[targetIdx]}`, "#ffeb3b");
-        }
+        // upgradeDiceFace removed, replaced by tryUpgradeFace
 
         function flashDice() {
             const originalEmissive = new THREE.Color(0x000000);
@@ -725,7 +1385,10 @@
 
         async function randomDiceTeleport() {
             if (isMoving) return;
-            if (totalScore < 500) { showMessage("積分不足 (需要 500)！"); return; }
+            // Teleport Constraint: Must be allowed only if player hasn't rolled yet.
+            if (!hasMovedSinceLastToss) { showMessage("Already rolled! Move now!"); return; }
+
+            if (totalScore < 500) { showMessage("Need more score (500)!"); return; }
             subtractScore(500);
             const rx = Math.floor(Math.random() * gridSize) - halfBoard;
             const rz = Math.floor(Math.random() * gridSize) - halfBoard;
@@ -745,8 +1408,12 @@
             dice.scale.set(1,1,1);
             snapDiceRotation();
             checkChipCollection(rx, rz);
+            
+            // Teleport counts as positioning, still allows rolling? 
             hasMovedSinceLastToss = true; 
+            
             isMoving = false;
+            updateDiceUI(); // Update UI to show glow
         }
 
         function generatePointCanvas(point) {
