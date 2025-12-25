@@ -506,7 +506,7 @@
             if (isMoving) return;
             // Upgrade Restriction: Only allow before rolling
             if (!hasMovedSinceLastToss) {
-                showMessage("Roll already cast! Move first!", "#F44336");
+                showMessage("Move First!", "white");
                 return;
             }
 
@@ -525,7 +525,7 @@
             
             flashDice();
             updateDiceUI(index);
-            showMessage(`Face Upgraded to ${diceFacePoints[index]}!`, "#ffeb3b");
+            showMessage(`Upgraded!`, "#ffeb3b");
             checkBossUnlock();
         }
 
@@ -1145,8 +1145,8 @@
                             subtractScore(50);
                             showMessage(`Smaller!`, "#F44336");
                         }
-                        
                         hasMovedSinceLastToss = true; 
+                        updateDiceUI();
                         
                         // Check Boss Logic after Move
                         if(bossActive) {
@@ -1473,3 +1473,4 @@
     </script>
 </body>
 </html>
+
