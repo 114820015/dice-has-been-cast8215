@@ -131,7 +131,6 @@
             gap: 6px;
             align-items: center;
         }
-        #dice-status-label { display: none; }
         
         #dice-faces-preview { 
             display: grid; 
@@ -382,11 +381,11 @@
         const gridSize = 19; 
         const cellSize = 1;
         const halfBoard = (gridSize - 1) / 2; 
-        const bossFloatHeight = 1.0; // Reduced float height (was 2.0)
+        const bossFloatHeight = 1.0; 
 
         let isMoving = false;
         let hasMovedSinceLastToss = true; 
-        let totalScore = 100; // Updated Initial Score
+        let totalScore = 100; 
         let pathGroup = null; 
         let cameraAzimuth = 0; 
         let cameraPolar = 0.8; 
@@ -395,7 +394,6 @@
         const raycaster = new THREE.Raycaster();
         const mouse = new THREE.Vector2();
 
-        // Updated Initial Dice Faces: 1,1,1,2,2,2
         let diceFacePoints = [1, 1, 1, 2, 2, 2]; 
 
         const chipsConfig = [
@@ -414,7 +412,6 @@
 
         function init() {
             initHealthBar();
-
             scene = new THREE.Scene();
             scene.background = new THREE.Color(0xffffff);
             camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -434,7 +431,7 @@
             createDice();
             updateDiceUI();
             updateCameraPosition();
-            updateScoreUI(); // Display initial score
+            updateScoreUI();
 
             window.addEventListener('resize', onWindowResize);
             window.addEventListener('keydown', (e) => { if(e.code === 'Space') performToss(); });
@@ -443,8 +440,6 @@
             window.addEventListener('mouseup', () => isMouseDown = false);
             animate();
         }
-
-        // --- UI Functions ---
 
         function initHealthBar() {
             const container = document.getElementById('health-bar-container');
@@ -484,8 +479,7 @@
                 
                 el.classList.remove('face-upgraded', 'face-downgraded', 'face-can-upgrade');
 
-                // Check for upgrade availability glow: 
-                // Only if score >= 100 AND face < 6 AND we haven't rolled yet (hasMovedSinceLastToss is true) AND not currently moving
+                // Glow condition: score >= 100 AND face < 6 AND ready to roll (hasMovedSinceLastToss) AND not moving
                 if (totalScore >= 100 && pts < 6 && hasMovedSinceLastToss && !isMoving) {
                     el.classList.add('face-can-upgrade');
                 }
@@ -504,9 +498,11 @@
 
         function tryUpgradeFace(index) {
             if (isMoving) return;
-            // Upgrade Restriction: Only allow before rolling
+            
+            // Requirement: "路徑已經生成，玩家卻按下升級按鍵時顯示白色的 'Move First!'"
+            // Path is generated when hasMovedSinceLastToss is false.
             if (!hasMovedSinceLastToss) {
-                showMessage("Roll already cast! Move first!", "#F44336");
+                showMessage("Move First!", "white");
                 return;
             }
 
@@ -525,7 +521,8 @@
             
             flashDice();
             updateDiceUI(index);
-            showMessage(`Face Upgraded to ${diceFacePoints[index]}!`, "#ffeb3b");
+            // Requirement: "升級時只顯示 'Upgrade!'"
+            showMessage("Upgrade!", "#ffeb3b");
             checkBossUnlock();
         }
 
@@ -542,18 +539,15 @@
                 dice.material[targetIdx].needsUpdate = true;
                 
                 updateDiceUI(-1, targetIdx);
-                showMessage(`Face Downgraded to ${diceFacePoints[targetIdx]}!`, "#F44336");
+                showMessage(`Face Downgraded!`, "#F44336");
             } else {
                 showMessage("All faces at minimum!", "#F44336");
             }
         }
 
-        // --- Game Logic Updates ---
-
         function checkBossUnlock() {
             if (bossActive) return;
             const btn = document.getElementById('boss-btn');
-            // Changed Condition: Total Tosses >= 25
             if (totalTosses >= 25 && btn.style.display !== 'block') {
                 btn.style.display = 'block';
                 showMessage("WARNING: BOSS AVAILABLE!", "#ff0000");
@@ -562,33 +556,19 @@
 
         function triggerBoss() {
             const btn = document.getElementById('boss-btn');
-            // Remove text and hide button
             btn.style.display = 'none';
-
             bossActive = true;
             playerMovesSinceBoss = 0;
             document.getElementById('boss-counter-panel').style.display = 'block';
             document.getElementById('health-bar-container').style.display = 'flex';
             updateBossCounter();
             updateHealthUI();
-
-            // Background Change: Lighter Purple Black
             scene.background = new THREE.Color(0x2d1b4e);
 
-            // 1. Identify Enemies
-            const enemiesToRemove = [];
-            collectibleObjects.forEach((obj) => {
-                if (obj.userData.type === 'enemy') {
-                    enemiesToRemove.push(obj);
-                }
-            });
-
-            // 2. Animate and Convert Enemies
+            const enemiesToRemove = collectibleObjects.filter(obj => obj.userData.type === 'enemy');
             enemiesToRemove.forEach(enemy => {
                 const x = enemy.userData.x;
                 const z = enemy.userData.z;
-                
-                // Squash Animation
                 const startScaleY = enemy.scale.y;
                 let squashFrame = 0;
                 const squashDuration = 20;
@@ -596,28 +576,20 @@
                 function animateSquash() {
                     squashFrame++;
                     const progress = squashFrame / squashDuration;
-                    
                     if (progress < 1) {
                         enemy.scale.y = startScaleY * (1 - progress);
-                        enemy.position.y = (0.45 * enemy.scale.y) / 2; // Keep bottom on ground
+                        enemy.position.y = (0.45 * enemy.scale.y) / 2;
                         requestAnimationFrame(animateSquash);
                     } else {
-                        // Removal and Chip Spawning after animation
                         scene.remove(enemy);
                         occupiedLocations.delete(`${x},${z}`);
-                        
-                        // Create 50 Chip (Green)
                         create3DChip(x, z, { val: 50, color: '#4CAF50' });
                         occupiedLocations.set(`${x},${z}`, 'chip');
                     }
                 }
                 animateSquash();
             });
-            
-            // Remove from main list immediately so logic ignores them during squash
             collectibleObjects = collectibleObjects.filter(obj => obj.userData.type !== 'enemy');
-
-            showMessage("BOSS SPAWNED! ENEMIES CRUSHED!", "#00d0ff");
 
             const bossSize = diceSize * 2.4; 
             const geometry = new THREE.RoundedBoxGeometry(bossSize, bossSize, bossSize, 4, 0.2);
@@ -631,17 +603,13 @@
                 ctx.fillStyle = '#ffffff';
                 const radius = 24; 
                 const posMap = {
-                    1: [[128, 128]], 
-                    2: [[70, 70], [186, 186]], 
-                    3: [[60, 60], [128, 128], [196, 196]],
-                    4: [[75, 75], [181, 75], [75, 181], [181, 181]], 
-                    5: [[75, 75], [181, 75], [128, 128], [75, 181], [181, 181]],
+                    1: [[128, 128]], 2: [[70, 70], [186, 186]], 3: [[60, 60], [128, 128], [196, 196]],
+                    4: [[75, 75], [181, 75], [75, 181], [181, 181]], 5: [[75, 75], [181, 75], [128, 128], [75, 181], [181, 181]],
                     6: [[75, 60], [75, 128], [75, 196], [181, 60], [181, 128], [181, 196]]
                 };
                 (posMap[i] || []).forEach(p => { ctx.beginPath(); ctx.arc(p[0], p[1], radius, 0, Math.PI * 2); ctx.fill(); });
                 materials.push(new THREE.MeshPhongMaterial({ map: new THREE.CanvasTexture(canvas), emissive: new THREE.Color(0x330000) }));
             }
-            
             bossDice = new THREE.Mesh(geometry, materials);
             bossDice.position.set(0, 20, 0); 
             bossDice.castShadow = true;
@@ -650,20 +618,16 @@
             let velocity = 0;
             const gravity = 0.02;
             const groundY = bossSize / 2 + bossFloatHeight; 
-
             function animateBossDrop() {
                 velocity += gravity;
                 bossDice.position.y -= velocity;
                 bossDice.rotation.x += 0.05;
                 bossDice.rotation.z += 0.02;
-
                 if (bossDice.position.y <= groundY) {
                     bossDice.position.y = groundY;
                     bossDice.rotation.set(0, 0, 0); 
                     camera.position.y -= 0.5;
                     setTimeout(() => camera.position.y += 0.5, 50);
-                    showMessage("DOOM DICE! CLEAR BEAMS!", "#ff0000");
-                    
                     setTimeout(() => bossTurn(), 500); 
                     return; 
                 }
@@ -674,21 +638,14 @@
 
         async function bossTurn() {
             if (bossHP <= 0) return; 
-            
             isMoving = true; 
-            showMessage("BOSS ACTING...", "#aa00ff");
-            
             const bossSize = diceSize * 2.4; 
             const floatY = bossSize / 2 + bossFloatHeight;
-
-            // Boss Roll Animation
             const duration = 50; 
             let frame = 0;
             const startQuat = bossDice.quaternion.clone();
             const axis = new THREE.Vector3(Math.random()-0.5, Math.random()-0.5, Math.random()-0.5).normalize();
             const totalRot = Math.PI * 6 + Math.random() * Math.PI * 4;
-            
-            // Just bounce in place
             const curX = bossDice.position.x; 
             const curZ = bossDice.position.z;
 
@@ -697,7 +654,7 @@
                     frame++; 
                     const t = frame / duration;
                     if (frame <= duration) {
-                        bossDice.position.y = floatY + Math.sin(t * Math.PI) * 8; // Jump higher
+                        bossDice.position.y = floatY + Math.sin(t * Math.PI) * 8;
                         const currentRot = new THREE.Quaternion().setFromAxisAngle(axis, totalRot * t);
                         bossDice.quaternion.copy(startQuat).premultiply(currentRot);
                         requestAnimationFrame(animateBossToss);
@@ -713,12 +670,8 @@
                 }
                 animateBossToss();
             });
-
             bossLastRoll = Math.floor(Math.random() * 6) + 1; 
-            showMessage(`BOSS ROLLED ${bossLastRoll}! BEAMS SPAWNED!`, "#ff3333");
-            
             spawnBeams(bossLastRoll);
-            
             playerMovesSinceBoss = 0;
             updateBossCounter(); 
             isMoving = false; 
@@ -737,32 +690,21 @@
                     (bx === Math.round(dice.position.x) && bz === Math.round(dice.position.z)) 
                     && attempts < 50
                 );
-
                 const existing = beams.find(b => b.userData.x === bx && b.userData.z === bz);
                 if (!existing) {
                     const h = 10;
                     const geo = new THREE.CylinderGeometry(0.4, 0.4, h, 16);
                     const mat = new THREE.MeshPhongMaterial({
-                        color: 0x2a003b,
-                        emissive: 0xaa00ff,
-                        emissiveIntensity: 0.8,
-                        transparent: true,
-                        opacity: 0.4 // Lighter opacity
+                        color: 0x2a003b, emissive: 0xaa00ff, emissiveIntensity: 0.8, transparent: true, opacity: 0.4 
                     });
                     const beam = new THREE.Mesh(geo, mat);
                     beam.position.set(bx, h/2, bz);
                     beam.userData = { x: bx, z: bz, type: 'beam' };
-                    
                     scene.add(beam);
                     beams.push(beam);
                 }
             }
-
-            if (beams.length >= 21) {
-                gameOver(false, "OVERLOAD! WORLD DESTROYED!");
-            } else if (beams.length >= 15) {
-                showMessage("WARNING!", "#ff0000");
-            }
+            if (beams.length >= 21) gameOver(false, "OVERLOAD!");
         }
 
         async function checkBeamCollision(x, z) {
@@ -771,86 +713,44 @@
                 const beam = beams[index];
                 scene.remove(beam);
                 beams.splice(index, 1);
-                
                 bossHP--;
                 updateHealthUI();
-                
-                showMessage("DAMAGE", "#4CAF50");
-                
-                if (bossHP <= 0) {
-                    await animateBossDefeat();
-                    return true; 
-                }
+                if (bossHP <= 0) { await animateBossDefeat(); return true; }
             }
             return false;
         }
 
         async function animateBossDefeat() {
             isMoving = true; 
-            showMessage("BOSS EXPLODING...", "#ff00ff");
-            
-            const startY = bossDice.position.y;
-            const startX = bossDice.position.x;
-            const startZ = bossDice.position.z;
+            const startY = bossDice.position.y, startX = bossDice.position.x, startZ = bossDice.position.z;
             const duration = 120; 
-
-            // Explosion particles
             for(let i=0; i<50; i++) {
-                const pGeo = new THREE.BoxGeometry(0.3, 0.3, 0.3);
-                const pMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-                const p = new THREE.Mesh(pGeo, pMat);
+                const p = new THREE.Mesh(new THREE.BoxGeometry(0.3,0.3,0.3), new THREE.MeshBasicMaterial({color:0xffffff}));
                 p.position.set(startX, startY, startZ);
-                // Random outward velocity
-                p.userData.vel = new THREE.Vector3(
-                    (Math.random()-0.5) * 1.5, 
-                    (Math.random()-0.5) * 1.5, 
-                    (Math.random()-0.5) * 1.5
-                );
+                p.userData.vel = new THREE.Vector3((Math.random()-0.5)*1.5, (Math.random()-0.5)*1.5, (Math.random()-0.5)*1.5);
                 scene.add(p);
                 particles.push(p);
             }
-
             for(let f=0; f<duration; f++) {
                 const t = f/duration;
-                // Expanding
-                const scale = 1 + t * 4; // Grow large
+                const scale = 1 + t * 4;
                 bossDice.scale.set(scale, scale, scale);
-                
-                // Shake
-                bossDice.position.x = startX + (Math.random()-0.5) * 0.5;
-                bossDice.position.y = startY + (Math.random()-0.5) * 0.5;
-                bossDice.position.z = startZ + (Math.random()-0.5) * 0.5;
-
-                // Flash white/bright
-                const intensity = (f % 5) * 0.2;
+                bossDice.position.set(startX+(Math.random()-0.5)*0.5, startY+(Math.random()-0.5)*0.5, startZ+(Math.random()-0.5)*0.5);
                 bossDice.material.forEach(m => {
-                    m.emissive.setRGB(1, 1 - intensity, 1 - intensity);
+                    m.emissive.setRGB(1, 1-(f%5)*0.2, 1-(f%5)*0.2);
                     m.emissiveIntensity = 1 + t * 5;
-                    // Opacity Change
-                    m.transparent = true;
-                    m.opacity = 0.7;
+                    m.transparent = true; m.opacity = 0.7;
                 });
-
-                // Update particles (delayed explosion visual)
                 if (t > 0.5) {
-                    particles.forEach(p => {
-                        p.position.add(p.userData.vel);
-                        p.rotation.x += 0.2;
-                        p.rotation.y += 0.2;
-                    });
+                    particles.forEach(p => { p.position.add(p.userData.vel); p.rotation.x += 0.2; p.rotation.y += 0.2; });
                 }
-
                 await new Promise(requestAnimationFrame);
             }
-            
             scene.remove(bossDice);
             particles.forEach(p => scene.remove(p));
             particles = [];
-            
-            // Wait 2 seconds before showing game over screen
-            await new Promise(resolve => setTimeout(resolve, 2000));
-
-            gameOver(true, "ALL BEAMS CLEARED! BOSS DEFEATED!");
+            await new Promise(r => setTimeout(r, 2000));
+            gameOver(true, "VICTORY!");
         }
 
         function gameOver(win, msg) {
@@ -859,39 +759,28 @@
             document.getElementById('end-title').innerText = win ? "CONGRATULATION" : "GAME OVER";
             document.getElementById('end-title').style.color = win ? "#4CAF50" : "#F44336";
             document.getElementById('total-tosses-val').innerText = totalTosses;
-            showMessage(msg, win ? "#4CAF50" : "#F44336");
-
             const previewContainer = document.getElementById('end-dice-preview');
             previewContainer.innerHTML = '';
             diceFacePoints.forEach(pts => {
                 const div = document.createElement('div');
                 div.className = 'end-face-box';
-                const canvas = generatePointCanvas(pts);
-                div.style.backgroundImage = `url(${canvas.toDataURL()})`;
+                div.style.backgroundImage = `url(${generatePointCanvas(pts).toDataURL()})`;
                 previewContainer.appendChild(div);
             });
         }
 
-        // --- Original Logic Wrappers ---
-
         function createBoard() {
             const size = gridSize * cellSize;
-            const geometry = new THREE.PlaneGeometry(size, size);
-            const material = new THREE.MeshPhongMaterial({ color: 0xffffff }); 
-            board = new THREE.Mesh(geometry, material);
-            board.rotation.x = -Math.PI / 2;
-            board.receiveShadow = true;
+            board = new THREE.Mesh(new THREE.PlaneGeometry(size, size), new THREE.MeshPhongMaterial({ color: 0xffffff }));
+            board.rotation.x = -Math.PI / 2; board.receiveShadow = true;
             scene.add(board);
             const gridHelper = new THREE.GridHelper(size, gridSize, 0xb0b0b0, 0xc0c0c0);
-            gridHelper.position.y = 0.001; 
-            scene.add(gridHelper);
+            gridHelper.position.y = 0.001; scene.add(gridHelper);
         }
 
         function showMessage(text, color = "white") {
             const box = document.getElementById('message-box');
-            box.innerText = text;
-            box.style.color = color;
-            box.style.display = 'block';
+            box.innerText = text; box.style.color = color; box.style.display = 'block';
             setTimeout(() => { box.style.display = 'none'; }, 2500);
         }
 
@@ -918,150 +807,85 @@
 
         function createMapContent() {
             collectibleObjects.forEach(c => scene.remove(c));
-            collectibleObjects = [];
-            occupiedLocations.clear();
-            const totalCells = gridSize * gridSize;
+            collectibleObjects = []; occupiedLocations.clear();
             const possiblePositions = [];
             for (let x = -halfBoard; x <= halfBoard; x++) {
                 for (let z = -halfBoard; z <= halfBoard; z++) {
-                    if (x === 0 && z === 0) continue; 
-                    possiblePositions.push({x, z});
+                    if (x === 0 && z === 0) continue; possiblePositions.push({x, z});
                 }
             }
             for (let i = possiblePositions.length - 1; i > 0; i--) {
                 const j = Math.floor(Math.random() * (i + 1));
                 [possiblePositions[i], possiblePositions[j]] = [possiblePositions[j], possiblePositions[i]];
             }
-            const targetEnemyCount = Math.floor(totalCells * 0.08); 
-            const targetChipCount = Math.floor(totalCells * 0.18);
-            let createdChips = 0, createdEnemies = 0;
-
-            // Updated Chip Generation Logic based on Inverse Prob
-            // Config: 50(0), 100(1), 150(2)
-            // Weights: 1/50, 1/100, 1/150 -> 6, 3, 2
-            const weights = [6, 3, 2];
-            const totalWeight = 11;
-
+            let cC = 0, eC = 0;
+            const weights = [6, 3, 2]; const tW = 11;
             for (let pos of possiblePositions) {
                 const rand = Math.random();
-                if (createdEnemies < targetEnemyCount && rand < 0.15) {
-                    if (!hasSurroundingEnemy(pos.x, pos.z)) {
-                        create3DEnemy(pos.x, pos.z);
-                        occupiedLocations.set(`${pos.x},${pos.z}`, 'enemy');
-                        createdEnemies++;
-                        continue; 
-                    }
+                if (eC < Math.floor(gridSize*gridSize*0.08) && rand < 0.15 && !hasSurroundingEnemy(pos.x, pos.z)) {
+                    create3DEnemy(pos.x, pos.z); occupiedLocations.set(`${pos.x},${pos.z}`, 'enemy'); eC++; continue;
                 } 
-                if (createdChips < targetChipCount && rand < 0.25) {
-                    if (!occupiedLocations.has(`${pos.x},${pos.z}`)) {
-                        if (countSurroundingChips(pos.x, pos.z) < 2) {
-                            // Weighted Choice
-                            const r = Math.random() * totalWeight;
-                            let chipIdx = 0;
-                            let accumulated = 0;
-                            for(let i=0; i<weights.length; i++) {
-                                accumulated += weights[i];
-                                if (r < accumulated) {
-                                    chipIdx = i;
-                                    break;
-                                }
-                            }
-
-                            create3DChip(pos.x, pos.z, chipsConfig[chipIdx]);
-                            occupiedLocations.set(`${pos.x},${pos.z}`, 'chip');
-                            createdChips++;
-                        }
-                    }
+                if (cC < Math.floor(gridSize*gridSize*0.18) && rand < 0.25 && !occupiedLocations.has(`${pos.x},${pos.z}`) && countSurroundingChips(pos.x, pos.z) < 2) {
+                    const r = Math.random() * tW; let idx = 0, acc = 0;
+                    for(let i=0; i<3; i++){ acc += weights[i]; if(r<acc){ idx=i; break; } }
+                    create3DChip(pos.x, pos.z, chipsConfig[idx]); occupiedLocations.set(`${pos.x},${pos.z}`, 'chip'); cC++;
                 }
-                if (createdEnemies >= targetEnemyCount && createdChips >= targetChipCount) break;
             }
         }
 
         function create3DChip(x, z, config) {
             const group = new THREE.Group();
-            const chipGeom = new THREE.CylinderGeometry(0.35, 0.35, 0.08, 32);
-            const chipMat = new THREE.MeshPhongMaterial({ color: config.color, transparent: true, opacity: 0.95 });
-            const chipBody = new THREE.Mesh(chipGeom, chipMat);
-            const canvas = document.createElement('canvas');
-            canvas.width = 128; canvas.height = 128;
-            const ctx = canvas.getContext('2d');
-            ctx.fillStyle = config.color; ctx.fillRect(0,0,128,128);
+            group.add(new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 0.08, 32), new THREE.MeshPhongMaterial({ color: config.color, transparent: true, opacity: 0.95 })));
+            const canvas = document.createElement('canvas'); canvas.width = 128; canvas.height = 128;
+            const ctx = canvas.getContext('2d'); ctx.fillStyle = config.color; ctx.fillRect(0,0,128,128);
             ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.beginPath(); ctx.arc(64,64,52,0,Math.PI*2); ctx.fill();
-            ctx.fillStyle = '#111'; ctx.font = 'bold 42px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-            ctx.fillText(config.val.toString(), 64, 64);
-            const textTex = new THREE.CanvasTexture(canvas);
-            const topGeom = new THREE.CircleGeometry(0.32, 32);
-            const topMat = new THREE.MeshBasicMaterial({ map: textTex, transparent: true, opacity: 1.0 });
-            const topLabel = new THREE.Mesh(topGeom, topMat);
-            topLabel.rotation.x = -Math.PI / 2; topLabel.position.y = 0.041;
-            group.add(chipBody, topLabel);
-            group.position.set(x, 0.04, z);
-            group.rotation.y = Math.random() * Math.PI * 2;
-            group.userData = { type: 'chip', value: config.val, x: x, z: z };
-            collectibleObjects.push(group);
-            scene.add(group);
+            ctx.fillStyle = '#111'; ctx.font = 'bold 42px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(config.val.toString(), 64, 64);
+            const top = new THREE.Mesh(new THREE.CircleGeometry(0.32, 32), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(canvas), transparent: true }));
+            top.rotation.x = -Math.PI / 2; top.position.y = 0.041; group.add(top);
+            group.position.set(x, 0.04, z); group.userData = { type: 'chip', value: config.val, x: x, z: z };
+            collectibleObjects.push(group); scene.add(group);
         }
 
         function create3DEnemy(x, z) {
-            const points = Math.floor(Math.random() * 5) + 1; 
-            const enemySize = 0.45;
-            const geometry = new THREE.RoundedBoxGeometry(enemySize, enemySize, enemySize, 2, 0.05);
-            const materials = [];
+            const pts = Math.floor(Math.random() * 5) + 1; const sz = 0.45;
+            const mats = [];
             for(let i=0; i<6; i++) {
-                const canvas = document.createElement('canvas');
-                canvas.width = 128; canvas.height = 128;
-                const ctx = canvas.getContext('2d');
-                ctx.fillStyle = '#F44336'; ctx.fillRect(0, 0, 128, 128);
+                const canvas = document.createElement('canvas'); canvas.width = 128; canvas.height = 128;
+                const ctx = canvas.getContext('2d'); ctx.fillStyle = '#F44336'; ctx.fillRect(0, 0, 128, 128);
                 ctx.fillStyle = 'white';
-                const radius = 18;
-                const posMap = {
-                    1: [[64, 64]], 2: [[35, 35], [93, 93]], 3: [[30, 30], [64, 64], [98, 98]],
-                    4: [[38, 38], [90, 38], [38, 90], [90, 90]], 5: [[38, 38], [90, 38], [64, 64], [38, 90], [90, 90]],
-                    6: [[38, 30], [38, 64], [38, 98], [90, 30], [90, 64], [90, 98]]
-                };
-                (posMap[points] || []).forEach(p => { ctx.beginPath(); ctx.arc(p[0], p[1], radius, 0, Math.PI*2); ctx.fill(); });
-                materials.push(new THREE.MeshPhongMaterial({ map: new THREE.CanvasTexture(canvas) }));
+                const posMap = {1:[[64,64]],2:[[35,35],[93,93]],3:[[30,30],[64,64],[98,98]],4:[[38,38],[90,38],[38,90],[90,90]],5:[[38,38],[90,38],[64,64],[38,90],[90,90]],6:[[38,30],[38,64],[38,98],[90,30],[90,64],[90,98]]};
+                (posMap[pts] || []).forEach(p => { ctx.beginPath(); ctx.arc(p[0], p[1], 18, 0, Math.PI*2); ctx.fill(); });
+                mats.push(new THREE.MeshPhongMaterial({ map: new THREE.CanvasTexture(canvas) }));
             }
-            const enemyMesh = new THREE.Mesh(geometry, materials);
-            enemyMesh.position.set(x, enemySize/2, z);
-            enemyMesh.userData = { type: 'enemy', points: points, x: x, z: z };
-            collectibleObjects.push(enemyMesh);
-            scene.add(enemyMesh);
+            const mesh = new THREE.Mesh(new THREE.RoundedBoxGeometry(sz, sz, sz, 2, 0.05), mats);
+            mesh.position.set(x, sz/2, z); mesh.userData = { type: 'enemy', points: pts, x: x, z: z };
+            collectibleObjects.push(mesh); scene.add(mesh);
         }
 
         function showPath(points) {
             if (pathGroup) scene.remove(pathGroup);
             pathGroup = new THREE.Group();
-            const directions = [{n:'xp',x:1,z:0},{n:'xn',x:-1,z:0},{n:'zp',x:0,z:1},{n:'zn',x:0,z:-1}];
-            directions.forEach(baseDir => {
-                const pathData = calculatePath(dice.position, baseDir, points);
-                pathData.forEach((step, i) => {
-                    const geometry = new THREE.PlaneGeometry(0.95, 0.95);
-                    const isTarget = (i === points && i > 0);
-                    const material = new THREE.MeshBasicMaterial({
-                        color: PATH_COLOR, transparent: true, 
-                        opacity: isTarget ? OPACITY_TARGET : OPACITY_NORMAL,
-                        side: THREE.DoubleSide, depthWrite: false
-                    });
-                    const stepMesh = new THREE.Mesh(geometry, material);
-                    stepMesh.rotation.x = -Math.PI / 2;
-                    stepMesh.position.set(step.x, 0.003, step.z);
-                    stepMesh.userData = { directionName: baseDir.n, isTarget: isTarget, fullPath: pathData };
-                    pathGroup.add(stepMesh);
+            [{n:'xp',x:1,z:0},{n:'xn',x:-1,z:0},{n:'zp',x:0,z:1},{n:'zn',x:0,z:-1}].forEach(base => {
+                const pD = calculatePath(dice.position, base, points);
+                pD.forEach((step, i) => {
+                    const isT = (i === points && i > 0);
+                    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(0.95, 0.95), new THREE.MeshBasicMaterial({ color: PATH_COLOR, transparent: true, opacity: isT ? OPACITY_TARGET : OPACITY_NORMAL, side: THREE.DoubleSide, depthWrite: false }));
+                    mesh.rotation.x = -Math.PI / 2; mesh.position.set(step.x, 0.003, step.z);
+                    mesh.userData = { directionName: base.n, isTarget: isT, fullPath: pD };
+                    pathGroup.add(mesh);
                 });
             });
             scene.add(pathGroup);
         }
 
-        function calculatePath(startPos, dir, points) {
-            let path = [{ x: Math.round(startPos.x), z: Math.round(startPos.z) }];
-            let curX = path[0].x, curZ = path[0].z, dx = dir.x, dz = dir.z;
+        function calculatePath(start, dir, points) {
+            let path = [{ x: Math.round(start.x), z: Math.round(start.z) }];
+            let cX = path[0].x, cZ = path[0].z, dX = dir.x, dZ = dir.z;
             for (let i = 1; i <= points; i++) {
-                let nx = curX + dx, nz = curZ + dz;
-                if (nx > halfBoard || nx < -halfBoard) { dx = -dx; nx = curX + dx; }
-                if (nz > halfBoard || nz < -halfBoard) { dz = -dz; nz = curZ + dz; }
-                curX = nx; curZ = nz;
-                path.push({ x: curX, z: curZ, dx, dz });
+                let nX = cX + dX, nZ = cZ + dZ;
+                if (nX > halfBoard || nX < -halfBoard) { dX = -dX; nX = cX + dX; }
+                if (nZ > halfBoard || nZ < -halfBoard) { dZ = -dZ; nZ = cZ + dZ; }
+                cX = nX; cZ = nZ; path.push({ x: cX, z: cZ, dX, dZ });
             }
             return path;
         }
@@ -1069,405 +893,181 @@
         function onMouseDown(e) {
             isMouseDown = true;
             if (isMoving || !pathGroup) return;
-            mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
-            mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+            mouse.x = (e.clientX / window.innerWidth) * 2 - 1; mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
             raycaster.setFromCamera(mouse, camera);
-            dice.visible = false;
-            const intersects = raycaster.intersectObjects(pathGroup.children);
-            dice.visible = true;
-            if (intersects.length > 0) {
-                const targetObj = intersects.find(intersect => intersect.object.userData.isTarget) || intersects[0];
-                const finalTarget = pathGroup.children.find(child => child.userData.directionName === targetObj.object.userData.directionName && child.userData.isTarget);
-                if (finalTarget) rollDiceAlongPath(finalTarget.userData.fullPath);
+            dice.visible = false; const int = raycaster.intersectObjects(pathGroup.children); dice.visible = true;
+            if (int.length > 0) {
+                const targetObj = int.find(i => i.object.userData.isTarget) || int[0];
+                const final = pathGroup.children.find(c => c.userData.directionName === targetObj.object.userData.directionName && c.userData.isTarget);
+                if (final) rollDiceAlongPath(final.userData.fullPath);
             }
         }
 
         function onMouseMove(e) {
-            if (isMouseDown) {
-                cameraAzimuth -= e.movementX * 0.005;
-                cameraPolar += e.movementY * 0.005;
-                cameraPolar = Math.max(0.1, Math.min(Math.PI / 2 - 0.1, cameraPolar));
-            }
+            if (isMouseDown) { cameraAzimuth -= e.movementX * 0.005; cameraPolar = Math.max(0.1, Math.min(Math.PI/2-0.1, cameraPolar + e.movementY * 0.005)); }
             if (isMoving || !pathGroup) return;
-            mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
-            mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
-            raycaster.setFromCamera(mouse, camera);
-            dice.visible = false;
-            const intersects = raycaster.intersectObjects(pathGroup.children);
-            dice.visible = true;
-            pathGroup.children.forEach(child => child.material.opacity = child.userData.isTarget ? OPACITY_TARGET : OPACITY_NORMAL);
-            if (intersects.length > 0) {
-                const dirName = intersects[0].object.userData.directionName;
-                pathGroup.children.forEach(child => {
-                    if (child.userData.directionName === dirName) {
-                        child.material.opacity = child.userData.isTarget ? OPACITY_HOVER_TARGET : OPACITY_HOVER_NORMAL;
-                    }
-                });
+            mouse.x = (e.clientX / window.innerWidth) * 2 - 1; mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+            raycaster.setFromCamera(mouse, camera); dice.visible = false; const int = raycaster.intersectObjects(pathGroup.children); dice.visible = true;
+            pathGroup.children.forEach(c => c.material.opacity = c.userData.isTarget ? OPACITY_TARGET : OPACITY_NORMAL);
+            if (int.length > 0) {
+                const dN = int[0].object.userData.directionName;
+                pathGroup.children.forEach(c => { if (c.userData.directionName === dN) c.material.opacity = c.userData.isTarget ? OPACITY_HOVER_TARGET : OPACITY_HOVER_NORMAL; });
             }
         }
 
         async function rollDiceAlongPath(path) {
-            isMoving = true;
-            if (pathGroup) { scene.remove(pathGroup); pathGroup = null; }
-            
-            // Increment total moves
+            isMoving = true; if (pathGroup) { scene.remove(pathGroup); pathGroup = null; }
             totalPlayerMoves++;
-            // checkBossUnlock(); // Removed call here, check is done in performToss
-
             for (let s = 1; s < path.length; s++) {
-                const step = path[s], prev = path[s-1];
-                const enemy = getObjectAt(step.x, step.z, 'enemy');
-                
-                // 2. Beam Collision
+                const step = path[s], prev = path[s-1], enemy = getObjectAt(step.x, step.z, 'enemy');
                 if (await checkBeamCollision(step.x, step.z)) return; 
-
                 if (enemy) {
-                    showMessage("FIGHT!", "#ff4d4d");
-                    await combatTossAnimation(enemy);
-                    const myPoint = getUpwardFace();
-                    const enemyPoint = enemy.userData.points;
-
-                    if (myPoint >= enemyPoint) {
-                        showMessage(`Bigger!`, "#4CAF50");
-                        addScore(100);
-                        await performCrushMove(prev, step, enemy);
-                        scene.remove(enemy);
-                        collectibleObjects = collectibleObjects.filter(o => o !== enemy);
-                        occupiedLocations.delete(`${enemy.userData.x},${enemy.userData.z}`);
-                        checkChipCollection(step.x, step.z);
+                    showMessage("FIGHT!", "#ff4d4d"); await combatTossAnimation(enemy);
+                    if (getUpwardFace() >= enemy.userData.points) {
+                        addScore(100); await performCrushMove(prev, step, enemy);
+                        scene.remove(enemy); collectibleObjects = collectibleObjects.filter(o => o !== enemy);
+                        occupiedLocations.delete(`${enemy.userData.x},${enemy.userData.z}`); checkChipCollection(step.x, step.z);
                     } else {
-                        // NEW LOGIC: Deduct score, if < 0 downgrade face
-                        if (totalScore - 50 < 0) {
-                            totalScore = 0;
-                            updateScoreUI(); // Make sure display is 0
-                            downgradeRandomFace();
-                        } else {
-                            subtractScore(50);
-                            showMessage(`Smaller!`, "#F44336");
-                        }
+                        // Combat failed: Deduct score or downgrade
+                        if (totalScore - 50 < 0) { totalScore = 0; updateScoreUI(); downgradeRandomFace(); }
+                        else { subtractScore(50); showMessage(`Smaller!`, "#F44336"); }
                         
+                        // Requirement: "與小敵人戰鬥失敗時被擋下來時可以升級，左上角展開面要發光"
+                        // Setting this to true allows upgrade status and glows.
                         hasMovedSinceLastToss = true; 
                         
-                        // Check Boss Logic after Move
-                        if(bossActive) {
-                            playerMovesSinceBoss++;
-                            updateBossCounter();
-                            if(playerMovesSinceBoss >= nextBossThreshold || beams.length === 0) {
-                                isMoving = false; 
-                                await bossTurn();
-                            }
+                        if(bossActive) { 
+                            playerMovesSinceBoss++; updateBossCounter(); 
+                            if(playerMovesSinceBoss >= nextBossThreshold || beams.length === 0) { isMoving = false; await bossTurn(); }
                         }
                         isMoving = false;
+                        updateDiceUI(); // Trigger glow
                         return;
                     }
-                } else {
-                    await performSingleMove(prev, step);
-                    checkChipCollection(step.x, step.z);
-                }
+                } else { await performSingleMove(prev, step); checkChipCollection(step.x, step.z); }
             }
-
-            hasMovedSinceLastToss = true;
-            // Set false first, then update UI to enable glow
-            isMoving = false;
-            updateDiceUI();
-            
-            if (bossActive) {
-                playerMovesSinceBoss++;
-                updateBossCounter();
-                
-                if (playerMovesSinceBoss >= nextBossThreshold || beams.length === 0) {
-                    await bossTurn();
-                }
-            }
+            hasMovedSinceLastToss = true; isMoving = false; updateDiceUI();
+            if (bossActive) { playerMovesSinceBoss++; updateBossCounter(); if (playerMovesSinceBoss >= nextBossThreshold || beams.length === 0) await bossTurn(); }
         }
 
         async function performCrushMove(from, to, enemy) {
-            const stepDir = { x: to.x - from.x, z: to.z - from.z };
-            const rotationAxis = new THREE.Vector3(stepDir.z, 0, -stepDir.x).normalize();
-            const startPos = dice.position.clone();
-            const startQuat = dice.quaternion.clone();
-            const targetPos = new THREE.Vector3(to.x, diceSize/2, to.z);
-            
-            const frames = 15;
-            for (let f = 1; f <= frames; f++) {
-                const t = f / frames;
-                dice.position.lerpVectors(startPos, targetPos, t);
-                dice.position.y = (diceSize/2) + Math.sin(t * Math.PI) * 1.2;
-                
-                const stepQuat = new THREE.Quaternion().setFromAxisAngle(rotationAxis, (Math.PI / 2) * t);
-                dice.quaternion.copy(startQuat).premultiply(stepQuat);
-
-                if (t > 0.6) {
-                    const crushT = (t - 0.6) / 0.4;
-                    enemy.scale.y = 1 - crushT * 0.9;
-                    enemy.position.y = (0.45 * enemy.scale.y) / 2;
-                }
-                
+            const rotA = new THREE.Vector3(to.z-from.z, 0, -(to.x-from.x)).normalize();
+            const sP = dice.position.clone(), sQ = dice.quaternion.clone(), tP = new THREE.Vector3(to.x, diceSize/2, to.z);
+            for (let f = 1; f <= 15; f++) {
+                const t = f / 15; dice.position.lerpVectors(sP, tP, t); dice.position.y = (diceSize/2) + Math.sin(t*Math.PI)*1.2;
+                dice.quaternion.copy(sQ).premultiply(new THREE.Quaternion().setFromAxisAngle(rotA, (Math.PI/2)*t));
+                if (t > 0.6) { enemy.scale.y = 1 - ((t-0.6)/0.4)*0.9; enemy.position.y = (0.45*enemy.scale.y)/2; }
                 await new Promise(requestAnimationFrame);
             }
-            
-            dice.position.copy(targetPos);
-            snapDiceRotation();
-
-            const originalY = dice.position.y;
-            for(let i=0; i<6; i++){
-                dice.position.y = originalY + (i % 2 === 0 ? 0.05 : 0);
-                await new Promise(requestAnimationFrame);
-            }
-            dice.position.y = originalY;
+            dice.position.copy(tP); snapDiceRotation();
         }
 
         async function performSingleMove(from, to) {
-            const stepDir = { x: to.x - from.x, z: to.z - from.z };
-            const rotationAxis = new THREE.Vector3(stepDir.z, 0, -stepDir.x).normalize();
-            const startPos = dice.position.clone();
-            const startQuat = dice.quaternion.clone();
-            const targetPos = new THREE.Vector3(to.x, diceSize/2, to.z);
-            
+            const rotA = new THREE.Vector3(to.z-from.z, 0, -(to.x-from.x)).normalize();
+            const sP = dice.position.clone(), sQ = dice.quaternion.clone(), tP = new THREE.Vector3(to.x, diceSize/2, to.z);
             for (let f = 1; f <= 8; f++) {
-                const t = f / 8;
-                dice.position.lerpVectors(startPos, targetPos, t);
-                dice.position.y = (diceSize/2) + Math.sin(t * Math.PI) * 0.2;
-                const stepQuat = new THREE.Quaternion().setFromAxisAngle(rotationAxis, (Math.PI / 2) * t);
-                dice.quaternion.copy(startQuat).premultiply(stepQuat);
+                const t = f / 8; dice.position.lerpVectors(sP, tP, t); dice.position.y = (diceSize/2) + Math.sin(t*Math.PI)*0.2;
+                dice.quaternion.copy(sQ).premultiply(new THREE.Quaternion().setFromAxisAngle(rotA, (Math.PI/2)*t));
                 await new Promise(requestAnimationFrame);
             }
-            dice.position.copy(targetPos);
-            snapDiceRotation();
+            dice.position.copy(tP); snapDiceRotation();
         }
 
         async function combatTossAnimation(enemy) {
-            const combatDuration = 30;
             const axis = new THREE.Vector3(Math.random()-0.5, Math.random()-0.5, Math.random()-0.5).normalize();
-            const eAxis = new THREE.Vector3(Math.random()-0.5, Math.random()-0.5, Math.random()-0.5).normalize();
-            
-            const startQuat = dice.quaternion.clone();
-            const eStartQuat = enemy.quaternion.clone();
-            const rotSpeed = Math.PI * 6;
-            const startY = dice.position.y;
-            const eStartY = enemy.position.y;
-
-            for (let f = 1; f <= combatDuration; f++) {
-                const t = f / combatDuration;
-                dice.position.y = startY + Math.sin(t * Math.PI) * 1.8;
-                const currentRot = new THREE.Quaternion().setFromAxisAngle(axis, rotSpeed * t);
-                dice.quaternion.copy(startQuat).premultiply(currentRot);
-                
-                enemy.position.y = eStartY + Math.sin(t * Math.PI) * 1.2;
-                const eRot = new THREE.Quaternion().setFromAxisAngle(eAxis, rotSpeed * t);
-                enemy.quaternion.copy(eStartQuat).premultiply(eRot);
-                
-                await new Promise(requestAnimationFrame);
+            const sQ = dice.quaternion.clone(), sY = dice.position.y, eY = enemy.position.y;
+            for (let f = 1; f <= 30; f++) {
+                const t = f/30; dice.position.y = sY + Math.sin(t*Math.PI)*1.8;
+                dice.quaternion.copy(sQ).premultiply(new THREE.Quaternion().setFromAxisAngle(axis, Math.PI*6*t));
+                enemy.position.y = eY + Math.sin(t*Math.PI)*1.2; await new Promise(requestAnimationFrame);
             }
-            
-            dice.position.y = diceSize / 2;
-            enemy.position.y = 0.45 / 2;
-            
-            snapDiceRotation();
-            const eEuler = new THREE.Euler().setFromQuaternion(enemy.quaternion);
-            eEuler.x = Math.round(eEuler.x / (Math.PI / 2)) * (Math.PI / 2);
-            eEuler.y = Math.round(eEuler.y / (Math.PI / 2)) * (Math.PI / 2);
-            eEuler.z = Math.round(eEuler.z / (Math.PI / 2)) * (Math.PI / 2);
-            enemy.quaternion.setFromEuler(eEuler);
-            
-            await new Promise(resolve => setTimeout(resolve, 600)); 
+            dice.position.y = diceSize / 2; enemy.position.y = 0.45 / 2; snapDiceRotation();
+            await new Promise(r => setTimeout(r, 600)); 
         }
 
-        function getObjectAt(x, z, type) {
-            const rx = Math.round(x); const rz = Math.round(z);
-            return collectibleObjects.find(o => o.userData.x === rx && o.userData.z === rz && o.userData.type === type);
-        }
+        function getObjectAt(x, z, type) { return collectibleObjects.find(o => Math.round(o.userData.x) === Math.round(x) && Math.round(o.userData.z) === Math.round(z) && o.userData.type === type); }
 
         function checkChipCollection(x, z) {
             const chip = getObjectAt(x, z, 'chip');
-            if (chip) {
-                addScore(chip.userData.value);
-                scene.remove(chip);
-                collectibleObjects = collectibleObjects.filter(o => o !== chip);
-                occupiedLocations.delete(`${chip.userData.x},${chip.userData.z}`);
-            }
+            if (chip) { addScore(chip.userData.value); scene.remove(chip); collectibleObjects = collectibleObjects.filter(o => o !== chip); occupiedLocations.delete(`${chip.userData.x},${chip.userData.z}`); }
         }
 
-        function updateScoreUI() {
-            const scoreEl = document.getElementById('score-value');
-            scoreEl.innerText = totalScore.toLocaleString();
-            updateDiceUI(); // Check for upgrade status whenever score changes
-        }
+        function updateScoreUI() { document.getElementById('score-value').innerText = totalScore.toLocaleString(); updateDiceUI(); }
 
-        function addScore(points) {
-            totalScore += points;
-            const scoreEl = document.getElementById('score-value');
-            scoreEl.innerText = totalScore.toLocaleString();
-            scoreEl.classList.remove('score-up');
-            void scoreEl.offsetWidth; scoreEl.classList.add('score-up');
-            updateDiceUI(); // Check glow
-        }
+        function addScore(p) { totalScore += p; updateScoreUI(); const el = document.getElementById('score-value'); el.classList.remove('score-up'); void el.offsetWidth; el.classList.add('score-up'); }
 
-        function subtractScore(points) {
-            totalScore = Math.max(0, totalScore - points);
-            const scoreEl = document.getElementById('score-value');
-            scoreEl.innerText = totalScore.toLocaleString();
-            scoreEl.classList.remove('score-down');
-            void scoreEl.offsetWidth; scoreEl.classList.add('score-down');
-            updateDiceUI(); // Check glow
-        }
+        function subtractScore(p) { totalScore = Math.max(0, totalScore - p); updateScoreUI(); const el = document.getElementById('score-value'); el.classList.remove('score-down'); void el.offsetWidth; el.classList.add('score-down'); }
 
         function snapDiceRotation() {
-            const euler = new THREE.Euler().setFromQuaternion(dice.quaternion);
-            euler.x = Math.round(euler.x / (Math.PI / 2)) * (Math.PI / 2);
-            euler.y = Math.round(euler.y / (Math.PI / 2)) * (Math.PI / 2);
-            euler.z = Math.round(euler.z / (Math.PI / 2)) * (Math.PI / 2);
-            dice.quaternion.setFromEuler(euler);
+            const e = new THREE.Euler().setFromQuaternion(dice.quaternion);
+            e.x = Math.round(e.x/(Math.PI/2))*(Math.PI/2); e.y = Math.round(e.y/(Math.PI/2))*(Math.PI/2); e.z = Math.round(e.z/(Math.PI/2))*(Math.PI/2);
+            dice.quaternion.setFromEuler(e);
         }
 
         function getUpwardFace() {
-            const vector = new THREE.Vector3(0, 1, 0);
-            vector.applyQuaternion(dice.quaternion.clone().invert());
-            let maxDot = -1, faceIndex = -1;
-            const fv = [new THREE.Vector3(1,0,0),new THREE.Vector3(-1,0,0),new THREE.Vector3(0,1,0),new THREE.Vector3(0,-1,0),new THREE.Vector3(0,0,1),new THREE.Vector3(0,0,-1)];
-            fv.forEach((v, i) => { const dot = v.dot(vector); if (dot > maxDot) { maxDot = dot; faceIndex = i; } });
-            return diceFacePoints[faceIndex];
+            const v = new THREE.Vector3(0, 1, 0).applyQuaternion(dice.quaternion.clone().invert());
+            let max = -1, idx = -1;
+            [new THREE.Vector3(1,0,0),new THREE.Vector3(-1,0,0),new THREE.Vector3(0,1,0),new THREE.Vector3(0,-1,0),new THREE.Vector3(0,0,1),new THREE.Vector3(0,0,-1)].forEach((fv, i) => { const d = fv.dot(v); if (d > max) { max = d; idx = i; } });
+            return diceFacePoints[idx];
         }
 
         function performToss() {
-            if(isMoving) return;
-            if (!hasMovedSinceLastToss) { showMessage("Move First!"); return; }
-            
-            isMoving = true;
-            if (pathGroup) { scene.remove(pathGroup); pathGroup = null; }
-            
-            totalTosses++; 
-
-            const duration = 50; let frame = 0;
-            const startQuat = dice.quaternion.clone();
-            const axis = new THREE.Vector3(Math.random()-0.5, Math.random()-0.5, Math.random()-0.5).normalize();
-            const totalRot = Math.PI * 6 + Math.random() * Math.PI * 4;
-            const curX = dice.position.x, curZ = dice.position.z;
-            function animateToss() {
-                frame++; const t = frame / duration;
-                if (frame <= duration) {
-                    dice.position.y = (diceSize/2) + Math.sin(t * Math.PI) * 2.5;
-                    const currentRot = new THREE.Quaternion().setFromAxisAngle(axis, totalRot * t);
-                    dice.quaternion.copy(startQuat).premultiply(currentRot);
-                    requestAnimationFrame(animateToss);
-                } else {
-                    dice.position.set(curX, diceSize / 2, curZ);
-                    snapDiceRotation(); 
-                    
-                    showPath(getUpwardFace()); 
-                    hasMovedSinceLastToss = false;
-                    
-                    isMoving = false;
-                    updateDiceUI(); // Update UI immediately to remove glow
-                    
-                    // Check Boss Unlock condition after toss
-                    checkBossUnlock();
-                }
+            if(isMoving) return; if (!hasMovedSinceLastToss) { showMessage("Move First!"); return; }
+            isMoving = true; if (pathGroup) { scene.remove(pathGroup); pathGroup = null; }
+            totalTosses++; const sQ = dice.quaternion.clone(), curX = dice.position.x, curZ = dice.position.z, axis = new THREE.Vector3(Math.random()-0.5,Math.random()-0.5,Math.random()-0.5).normalize();
+            let frame = 0;
+            function anim() {
+                frame++; const t = frame/50;
+                if (frame <= 50) { dice.position.y = (diceSize/2)+Math.sin(t*Math.PI)*2.5; dice.quaternion.copy(sQ).premultiply(new THREE.Quaternion().setFromAxisAngle(axis, (Math.PI*10)*t)); requestAnimationFrame(anim); }
+                else { dice.position.set(curX, diceSize/2, curZ); snapDiceRotation(); showPath(getUpwardFace()); hasMovedSinceLastToss = false; isMoving = false; updateDiceUI(); checkBossUnlock(); }
             }
-            animateToss();
+            anim();
         }
 
-        // upgradeDiceFace removed, replaced by tryUpgradeFace
-
         function flashDice() {
-            const originalEmissive = new THREE.Color(0x000000);
-            const flashColor = new THREE.Color(0xffff00);
-            let frame = 0; const duration = 30;
-            function animateFlash() {
-                frame++; const t = frame / duration;
-                const intensity = Math.sin(t * Math.PI) * 0.8;
-                dice.material.forEach(mat => { mat.emissive.lerpColors(originalEmissive, flashColor, intensity); });
-                if (frame < duration) requestAnimationFrame(animateFlash);
-                else dice.material.forEach(mat => mat.emissive.set(0x000000));
+            let f = 0; function anim() {
+                f++; const intensity = Math.sin((f/30)*Math.PI)*0.8; dice.material.forEach(m => m.emissive.setRGB(intensity, intensity, 0));
+                if (f < 30) requestAnimationFrame(anim); else dice.material.forEach(m => m.emissive.set(0));
             }
-            animateFlash();
+            anim();
         }
 
         async function randomDiceTeleport() {
-            if (isMoving) return;
-            // Teleport Constraint: Must be allowed only if player hasn't rolled yet.
-            if (!hasMovedSinceLastToss) { showMessage("Already rolled! Move now!"); return; }
-
-            if (totalScore < 500) { showMessage("Need more score (500)!"); return; }
-            subtractScore(500);
-            const rx = Math.floor(Math.random() * gridSize) - halfBoard;
-            const rz = Math.floor(Math.random() * gridSize) - halfBoard;
-            isMoving = true;
-            if (pathGroup) { scene.remove(pathGroup); pathGroup = null; }
-            const targetPos = new THREE.Vector3(rx, diceSize/2, rz);
+            if (isMoving || !hasMovedSinceLastToss) { if(!hasMovedSinceLastToss) showMessage("Move First!", "white"); return; }
+            if (totalScore < 500) { showMessage("Need 500!"); return; }
+            subtractScore(500); const target = new THREE.Vector3(Math.floor(Math.random()*gridSize)-halfBoard, diceSize/2, Math.floor(Math.random()*gridSize)-halfBoard);
+            isMoving = true; if (pathGroup) { scene.remove(pathGroup); pathGroup = null; }
             for (let f = 1; f <= 25; f++) {
-                const t = f / 25;
-                if (f <= 12) { dice.scale.set(1-t*2, 1-t*2, 1-t*2); }
-                else if (f <= 25) {
-                    dice.position.copy(targetPos);
-                    const t2 = (f-12)/13;
-                    dice.scale.set(t2, t2, t2);
-                }
+                const t = f/25; if (f <= 12) dice.scale.set(1-t*2, 1-t*2, 1-t*2); else { dice.position.copy(target); dice.scale.set((f-12)/13, (f-12)/13, (f-12)/13); }
                 await new Promise(requestAnimationFrame);
             }
-            dice.scale.set(1,1,1);
-            snapDiceRotation();
-            checkChipCollection(rx, rz);
-            
-            // Teleport counts as positioning, still allows rolling? 
-            hasMovedSinceLastToss = true; 
-            
-            isMoving = false;
-            updateDiceUI(); // Update UI to show glow
+            dice.scale.set(1,1,1); snapDiceRotation(); checkChipCollection(target.x, target.z); hasMovedSinceLastToss = true; isMoving = false; updateDiceUI();
         }
 
         function generatePointCanvas(point) {
-            const canvas = document.createElement('canvas');
-            canvas.width = 256; canvas.height = 256;
-            const ctx = canvas.getContext('2d');
-            ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, 256, 256);
-            ctx.strokeStyle = '#eeeeee'; ctx.lineWidth = 4; ctx.strokeRect(0, 0, 256, 256);
+            const c = document.createElement('canvas'); c.width = 256; c.height = 256; const ctx = c.getContext('2d');
+            ctx.fillStyle = '#ffffff'; ctx.fillRect(0,0,256,256); ctx.strokeStyle = '#eeeeee'; ctx.lineWidth = 4; ctx.strokeRect(0,0,256,256);
             ctx.fillStyle = (point === 1 || point === 4) ? '#ff4d4d' : '#333333';
-            const radius = point === 1 ? 48 : 32;
-            const posMap = {
-                1: [[128, 128]], 2: [[70, 70], [186, 186]], 3: [[60, 60], [128, 128], [196, 196]],
-                4: [[75, 75], [181, 75], [75, 181], [181, 181]], 5: [[75, 75], [181, 75], [128, 128], [75, 181], [181, 181]],
-                6: [[75, 60], [75, 128], [75, 196], [181, 60], [181, 128], [181, 196]]
-            };
-            (posMap[point] || []).forEach(p => { ctx.beginPath(); ctx.arc(p[0], p[1], radius, 0, Math.PI * 2); ctx.fill(); });
-            return canvas;
+            const posMap = {1:[[128,128]],2:[[70,70],[186,186]],3:[[60,60],[128,128],[196,196]],4:[[75,75],[181,75],[75,181],[181,181]],5:[[75,75],[181,75],[128,128],[75,181],[181,181]],6:[[75,60],[75,128],[75,196],[181,60],[181,128],[181,196]]};
+            (posMap[point] || []).forEach(p => { ctx.beginPath(); ctx.arc(p[0],p[1],point===1?48:32,0,Math.PI*2); ctx.fill(); });
+            return c;
         }
 
         function createDice() {
-            const geometry = new THREE.RoundedBoxGeometry(diceSize, diceSize, diceSize, 3, 0.08);
-            const materials = [];
-            for(let i=0; i<6; i++) { 
-                materials.push(new THREE.MeshPhongMaterial({ 
-                    map: new THREE.CanvasTexture(generatePointCanvas(diceFacePoints[i])),
-                    emissive: new THREE.Color(0x000000)
-                })); 
-            }
-            dice = new THREE.Mesh(geometry, materials);
-            dice.position.y = diceSize / 2; dice.castShadow = true;
-            scene.add(dice);
+            const mats = []; for(let i=0; i<6; i++) mats.push(new THREE.MeshPhongMaterial({ map: new THREE.CanvasTexture(generatePointCanvas(diceFacePoints[i])), emissive: new THREE.Color(0) }));
+            dice = new THREE.Mesh(new THREE.RoundedBoxGeometry(diceSize, diceSize, diceSize, 3, 0.08), mats);
+            dice.position.y = diceSize/2; dice.castShadow = true; scene.add(dice);
         }
 
         function updateCameraPosition() {
             const dist = 9;
-            camera.position.set(
-                Math.sin(cameraAzimuth) * Math.cos(cameraPolar) * dist + dice.position.x,
-                Math.sin(cameraPolar) * dist + dice.position.y,
-                Math.sin(cameraAzimuth + Math.PI/2) * Math.cos(cameraPolar) * dist + dice.position.z
-            );
+            camera.position.set(Math.sin(cameraAzimuth)*Math.cos(cameraPolar)*dist+dice.position.x, Math.sin(cameraPolar)*dist+dice.position.y, Math.sin(cameraAzimuth+Math.PI/2)*Math.cos(cameraPolar)*dist+dice.position.z);
             camera.lookAt(dice.position.x, dice.position.y, dice.position.z);
         }
 
-        function onWindowResize() {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        }
+        function onWindowResize() { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); }
 
-        function animate() {
-            requestAnimationFrame(animate);
-            updateCameraPosition();
-            renderer.render(scene, camera);
-        }
+        function animate() { requestAnimationFrame(animate); updateCameraPosition(); renderer.render(scene, camera); }
 
         window.onload = init;
     </script>
