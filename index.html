@@ -382,6 +382,9 @@
         let particles = []; 
         let isCinematic = false; 
         
+        // Shake intensity for camera
+        let shakeIntensity = 0;
+
         let bossActive = false;
         let playerMovesSinceBoss = 0;
         let bossLastRoll = 4; 
@@ -696,17 +699,10 @@
                     bossDice.position.y = groundY;
                     bossDice.rotation.set(0, 0, 0); 
                     const originalY = camera.position.y;
-                    let shakeCount = 0;
-                    const shakeInterval = setInterval(() => {
-                        if (!isCinematic) { 
-                             // Skip shake during cinematic 
-                        }
-                        shakeCount++;
-                        if (shakeCount > 10) {
-                            clearInterval(shakeInterval);
-                        }
-                    }, 30);
                     
+                    // Trigger strong shake on impact
+                    shakeIntensity = 1.5;
+
                     showMessage("Hit The Beam!", "#00d0ff"); 
                     setTimeout(() => bossTurn(), 2000); 
                     return; 
@@ -754,6 +750,9 @@
                 }
                 animateBossToss();
             });
+
+            // Trigger strong shake after roll lands
+            shakeIntensity = 1.5;
 
             bossLastRoll = Math.floor(Math.random() * 6) + 1; 
             showMessage(`Boss Roll ${bossLastRoll}!`, "#ff3333"); 
@@ -824,6 +823,34 @@
         async function animateBossDefeat() {
             isMoving = true; 
             showMessage("BOSS EXPLODING...", "#ff00ff");
+
+            // --- DEFEAT CINEMATIC CAMERA ---
+            isCinematic = true;
+            
+            // Calculate Vector from Player to Boss
+            const pPos = dice.position.clone();
+            const bPos = bossDice.position.clone();
+            // Direction from Player towards Boss
+            let dir = new THREE.Vector3().subVectors(bPos, pPos).normalize();
+            
+            // If they are on top of each other, use default Z
+            if (dir.lengthSq() === 0) dir.set(0, 0, -1);
+
+            // Position camera behind player, looking at Boss?
+            // "Boss與玩家連線的上方35度" -> Let's place camera on the line, but elevated
+            // Let's place it "behind" the player, so we see Player -> Boss
+            const dist = 20;
+            const elev = 35 * (Math.PI / 180);
+            const hDist = dist * Math.cos(elev);
+            const vDist = dist * Math.sin(elev);
+
+            // From Boss, go BACK towards Player and beyond
+            const camPos = bPos.clone().sub(dir.multiplyScalar(hDist));
+            camPos.y = vDist;
+
+            camera.position.copy(camPos);
+            camera.lookAt(bPos);
+            // ---------------------------------
             
             const startY = bossDice.position.y;
             const startX = bossDice.position.x;
@@ -858,7 +885,7 @@
                     m.emissive.setRGB(1, 1 - intensity, 1 - intensity);
                     m.emissiveIntensity = 1 + t * 5;
                     m.transparent = true;
-                    m.opacity = 0.7;
+                    m.opacity = 0.7; // Ensure opacity is 70% as requested
                 });
 
                 if (t > 0.5) {
@@ -1487,6 +1514,15 @@
         function animate() {
             requestAnimationFrame(animate);
             updateCameraPosition();
+            
+            // Apply shake independent of camera mode (Cinematic or Follow)
+            if (shakeIntensity > 0) {
+                const s = shakeIntensity;
+                camera.position.add(new THREE.Vector3((Math.random()-0.5)*s, (Math.random()-0.5)*s, (Math.random()-0.5)*s));
+                shakeIntensity *= 0.9;
+                if(shakeIntensity < 0.05) shakeIntensity = 0;
+            }
+
             renderer.render(scene, camera);
         }
 
